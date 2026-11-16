@@ -146,6 +146,7 @@ const els = {
 let state = loadState(window.localStorage);
 let laundryState = loadLaundryState(window.localStorage);
 let laundryCleanup = null;
+let laundryFailureStreak = 0;
 let musicState = loadMusicState(window.localStorage);
 let musicCleanup = null;
 let musicSongs = [...BUILTIN_SONGS];
@@ -218,6 +219,8 @@ function voiceStore() {
   return recordingStore;
 }
 
+const SPEECH_FINISH_TIMEOUT_MS = 4000;
+
 const speech = {
   available:
     typeof window.speechSynthesis !== 'undefined' &&
@@ -225,7 +228,36 @@ const speech = {
   token: 0,
   recordingAudio: null,
   recordingUrl: null,
+  currentPlayback: null,
+  endPlayback(expected = null) {
+    const current = this.currentPlayback;
+    if (!current || (expected && current !== expected)) return;
+    this.currentPlayback = null;
+    if (current.timer !== null) {
+      window.clearTimeout(current.timer);
+      current.timer = null;
+    }
+    current.resolve();
+  },
+  beginPlayback() {
+    this.endPlayback();
+    let resolve;
+    const promise = new Promise((settle) => {
+      resolve = settle;
+    });
+    const current = { promise, resolve, timer: null };
+    current.timer = window.setTimeout(
+      () => this.endPlayback(current),
+      SPEECH_FINISH_TIMEOUT_MS,
+    );
+    this.currentPlayback = current;
+    return current;
+  },
+  whenCurrentDone() {
+    return this.currentPlayback ? this.currentPlayback.promise : Promise.resolve();
+  },
   cancelRecordingPlayback() {
+    this.endPlayback();
     if (this.recordingAudio) {
       try {
         this.recordingAudio.pause();
@@ -263,9 +295,11 @@ const speech = {
     }
 
     const audio = new Audio(url);
+    const playback = this.beginPlayback();
     this.recordingAudio = audio;
     this.recordingUrl = url;
     const cleanup = () => {
+      this.endPlayback(playback);
       if (this.recordingAudio === audio) this.recordingAudio = null;
       if (this.recordingUrl === url) {
         try {
@@ -289,6 +323,7 @@ const speech = {
   },
   speakWithTts(message, lang) {
     if (!this.available) return;
+    const playback = this.beginPlayback();
     try {
       window.speechSynthesis.cancel();
       const utterance = new window.SpeechSynthesisUtterance(String(message));
@@ -296,18 +331,28 @@ const speech = {
       utterance.rate = Number(state.speechRate) || 0.88;
       utterance.pitch = 1;
       utterance.volume = 1;
+      utterance.onend = () => this.endPlayback(playback);
+      utterance.onerror = () => this.endPlayback(playback);
       const voice = findVoice(lang);
       if (voice) utterance.voice = voice;
       window.speechSynthesis.speak(utterance);
     } catch {
+      this.endPlayback(playback);
       /* Speech is an enhancement, never a requirement. */
     }
   },
-  async speak(message, lang = language()) {
+  async speak(message, lang = language(), options = {}) {
     if (!message) return;
     if (state.speechMuted) {
       this.stop();
       return;
+    }
+
+    const settings = options && typeof options === 'object' ? options : {};
+    if (settings.afterCurrent) {
+      const token = this.token;
+      await this.whenCurrentDone();
+      if (token !== this.token || state.speechMuted) return;
     }
 
     this.cancelRecordingPlayback();
@@ -1186,7 +1231,7 @@ function scheduleIdlePrompt() {
     }
 
     idleState = markIdlePromptRepeated(idleState, now);
-    speech.speak(currentRound.promptText);
+    speech.speak(currentRound.promptText, language(), { afterCurrent: true });
   }, delay);
 }
 
@@ -1301,6 +1346,7 @@ function startRound(gameOverride = null) {
   if (gameSessionStartedAt === null || previousGameId !== currentGame.id) {
     gameSessionStartedAt = performance.now();
   }
+  if (currentGame.type !== 'laundry') laundryFailureStreak = 0;
 
   const level = effectiveLevel(state, currentGame.type);
   const params = getLevelParams(currentGame.type, level);
@@ -1309,7 +1355,9 @@ function startRound(gameOverride = null) {
   updateHud();
   renderRound(currentGame, params, currentRound);
   updateStatusLine();
-  if (!currentRound.silentPrompt) speech.speak(currentRound.promptText);
+  if (!currentRound.silentPrompt) {
+    speech.speak(currentRound.promptText, language(), { afterCurrent: true });
+  }
 
   idleState = createIdleState(performance.now());
   scheduleIdlePrompt();
@@ -1383,6 +1431,7 @@ function handleLaundryOutcome(success, info = {}, round) {
   updateStatusLine();
 
   if (success) {
+    laundryFailureStreak = 0;
     playSuccessTone();
     speech.speak(text(pick(PRAISE_KEYS)));
     roundsInType += 1;
@@ -1396,6 +1445,10 @@ function handleLaundryOutcome(success, info = {}, round) {
       }, 1600);
     }
   } else {
+    laundryFailureStreak += 1;
+    if (laundryFailureStreak >= 3 && !chosenGame()) {
+      roundsInType = ROUNDS_PER_TYPE;
+    }
     speech.speak(text('tryAgain', { name: displayName() }));
   }
 
@@ -1424,7 +1477,7 @@ function renderLaundryRound(round) {
       round.promptText = promptText;
       idleState = createIdleState(performance.now());
       scheduleIdlePrompt();
-      speech.speak(promptText);
+      speech.speak(promptText, language(), { afterCurrent: true });
     },
     onSuccess: (info) => handleLaundryOutcome(true, info, round),
     onFailure: (info) => handleLaundryOutcome(false, info, round),
@@ -1497,7 +1550,7 @@ function renderMusicRound(round) {
       round.promptText = promptText;
       idleState = createIdleState(performance.now());
       scheduleIdlePrompt();
-      speech.speak(promptText);
+      speech.speak(promptText, language(), { afterCurrent: true });
     },
     onSuccess: (info) => handleMusicOutcome(true, info, round),
     onFailure: (info) => handleMusicOutcome(false, info, round),
@@ -1759,7 +1812,7 @@ function submitOutcome(success, { timeout = false } = {}) {
       if (currentRound !== failedRound || !started || overlayOpen()) return;
       failedRound.done = false;
       failedRound.startedAt = performance.now();
-      speech.speak(failedRound.promptText);
+      speech.speak(failedRound.promptText, language(), { afterCurrent: true });
       idleState = createIdleState(performance.now());
       scheduleIdlePrompt();
     }, 1700);

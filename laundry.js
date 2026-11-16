@@ -32,6 +32,22 @@ const WASH_MS = 3000;
 const RESET_PAUSE_MS = 650;
 const NEXT_ITEM_PAUSE_MS = 1000;
 const MAX_RULE_LEVEL = 3;
+export const MOTOR_FAILURE_DEBOUNCE_MS = 1500;
+
+export function shouldReportBoardMotorFailure(options = {}) {
+  const source = options && typeof options === 'object' ? options : {};
+  if (source.motorLevel !== 4) return false;
+  if (source.multiTouch === true) return false;
+  if (source.safe === false) return false;
+  if (source.durationValid === false) return false;
+
+  const now = Number(source.now);
+  if (!Number.isFinite(now)) return false;
+
+  const last = Number(source.lastFailureAt);
+  if (Number.isFinite(last) && now - last < MOTOR_FAILURE_DEBOUNCE_MS) return false;
+  return true;
+}
 
 function clamp(value, min, max) {
   const number = Number(value);
@@ -369,6 +385,7 @@ export function renderLaundry(stage, options = {}) {
   let tap = null;
   let drag = null;
   let multiTouch = false;
+  let lastBoardMotorFailureAt = -Infinity;
 
   function later(callback, delay) {
     const timer = window.setTimeout(() => {
@@ -607,7 +624,6 @@ export function renderLaundry(stage, options = {}) {
   function onBoardPointerDown(event) {
     if (disposed || busy || !currentItem) return;
     const levels = readLevels();
-    if (levels.motorLevel === 4) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (activePointers.size > 1) {
       multiTouch = true;
@@ -615,18 +631,53 @@ export function renderLaundry(stage, options = {}) {
       return;
     }
     if (!nowSafe(point(event))) return;
-    tap = { pointerId: event.pointerId, startedAt: performance.now() };
+    tap = {
+      pointerId: event.pointerId,
+      startedAt: performance.now(),
+      motorLevel: levels.motorLevel,
+    };
   }
 
   function onBoardPointerUp(event) {
-    if (!tap || tap.pointerId !== event.pointerId) return;
+    if (disposed || busy || !tap || tap.pointerId !== event.pointerId) return;
     const startedAt = tap.startedAt;
+    const motorLevel = tap.motorLevel;
     tap = null;
-    if (multiTouch) return;
-    if (!nowSafe(point(event))) return;
-    if (!isTouchDurationValid(startedAt, performance.now(), MIN_TOUCH_DURATION_MS)) {
+    if (!currentItem) return;
+
+    const now = performance.now();
+    const safe = nowSafe(point(event));
+    const durationValid = isTouchDurationValid(startedAt, now, MIN_TOUCH_DURATION_MS);
+
+    if (motorLevel === 4) {
+      if (
+        shouldReportBoardMotorFailure({
+          motorLevel,
+          multiTouch,
+          safe,
+          durationValid,
+          now,
+          lastFailureAt: lastBoardMotorFailureAt,
+        })
+      ) {
+        lastBoardMotorFailureAt = now;
+        shake(currentItemElement);
+        if (typeof settings.onFailure === 'function') {
+          const levels = readLevels();
+          settings.onFailure({
+            reason: 'motor',
+            item: currentItem,
+            motorLevel: levels.motorLevel,
+            ruleLevel: levels.ruleLevel,
+          });
+        }
+      }
       return;
     }
+
+    if (multiTouch) return;
+    if (!safe) return;
+    if (!durationValid) return;
     attemptAt(point(event));
   }
 
@@ -703,6 +754,14 @@ export function renderLaundry(stage, options = {}) {
 
     if (!hit) {
       snapBack(element);
+      if (typeof settings.onFailure === 'function') {
+        settings.onFailure({
+          reason: 'motor',
+          item: currentItem,
+          motorLevel: levels.motorLevel,
+          ruleLevel: levels.ruleLevel,
+        });
+      }
       return;
     }
 

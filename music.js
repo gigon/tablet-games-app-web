@@ -270,14 +270,14 @@ export function renderMusic(stage, options = {}) {
       later(() => {
         playSequence(range.start, range.count, () => {
           busy = false;
-          setTarget(true);
+          setTarget(false);
         });
       }, PHRASE_PAUSE_MS);
       return;
     }
 
     busy = false;
-    setTarget(true);
+    setTarget(false);
   }
 
   function acceptNote(note, padIndex) {
@@ -459,7 +459,7 @@ export function renderMusic(stage, options = {}) {
   board.addEventListener('pointercancel', onBoardPointerCancel);
 
   updateDots();
-  showPrompt('musicStart');
+  showPrompt(ruleLevel >= 2 ? 'musicWhereLight' : 'musicStart');
   setTarget(false);
 
   return function cleanup() {
