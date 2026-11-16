@@ -68,6 +68,15 @@ import {
 } from './music-logic.js';
 import { renderMusic } from './music.js';
 import {
+  createDefaultGardenState,
+  loadGardenState,
+  recordDensityResult as recordGardenDensityResult,
+  recordMotorResult as recordGardenMotorResult,
+  recordRuleResult as recordGardenRuleResult,
+  saveGardenState,
+} from './garden-logic.js';
+import { renderGarden } from './garden.js';
+import {
   PHRASES,
   createIndexedDbBackend,
   createRecordingStore,
@@ -150,6 +159,8 @@ let laundryFailureStreak = 0;
 let musicState = loadMusicState(window.localStorage);
 let musicCleanup = null;
 let musicSongs = [...BUILTIN_SONGS];
+let gardenState = loadGardenState(window.localStorage);
+let gardenCleanup = null;
 let games = [];
 let allThemes = [];
 let packsReady = null;
@@ -513,6 +524,7 @@ function gameTypeLabel(type) {
     count: 'typeCount',
     laundry: 'typeLaundry',
     music: 'typeMusic',
+    garden: 'typeGarden',
   };
   return text(keys[type] || 'typeButtons');
 }
@@ -1204,6 +1216,10 @@ function clearRoundTimers() {
     musicCleanup();
     musicCleanup = null;
   }
+  if (gardenCleanup) {
+    gardenCleanup();
+    gardenCleanup = null;
+  }
 }
 
 function markTouch() {
@@ -1253,6 +1269,16 @@ function createRound(game, params) {
     return {
       type: 'music',
       song: pick(musicSongs.length ? musicSongs : [...BUILTIN_SONGS]),
+      promptText: '',
+      silentPrompt: true,
+      startedAt: performance.now(),
+      done: false,
+    };
+  }
+
+  if (game.type === 'garden') {
+    return {
+      type: 'garden',
       promptText: '',
       silentPrompt: true,
       startedAt: performance.now(),
@@ -1377,7 +1403,12 @@ function setChoiceColumns(choices, count) {
 
 function renderRound(game, params, round) {
   els.stage.replaceChildren();
-  if (state.showTextLabels && game.type !== 'laundry' && game.type !== 'music') {
+  if (
+    state.showTextLabels &&
+    game.type !== 'laundry' &&
+    game.type !== 'music' &&
+    game.type !== 'garden'
+  ) {
     els.stage.append(promptElement(round.promptText));
   }
   els.stage.dataset.game = game.type;
@@ -1386,6 +1417,7 @@ function renderRound(game, params, round) {
   else if (game.type === 'count') renderCount(params, round);
   else if (game.type === 'laundry') renderLaundryRound(round);
   else if (game.type === 'music') renderMusicRound(round);
+  else if (game.type === 'garden') renderGardenRound(round);
   else renderDrag(params, round);
 }
 
@@ -1554,6 +1586,84 @@ function renderMusicRound(round) {
     },
     onSuccess: (info) => handleMusicOutcome(true, info, round),
     onFailure: (info) => handleMusicOutcome(false, info, round),
+  });
+}
+
+function gardenLevels() {
+  const fixed = state.fixedLevels.garden;
+  const motorLevel =
+    fixed === null || fixed === undefined
+      ? gardenState.motor.level
+      : Math.min(3, Math.max(1, Math.round(Number(fixed) || 1)));
+  const ruleLevel = Math.min(3, Math.max(1, gardenState.rule.level));
+  const densityLevel = Math.min(3, Math.max(1, gardenState.density.level));
+  return { motorLevel, ruleLevel, densityLevel };
+}
+
+function handleGardenOutcome(success, info = {}, round) {
+  if (!started || !currentGame || currentGame.type !== 'garden' || overlayOpen()) return;
+
+  const reactionMs = Math.max(0, performance.now() - (round?.startedAt || performance.now()));
+  state = recordResult(state, 'garden', { success, reactionMs });
+
+  const reason = info.reason;
+  if (reason === 'rule') {
+    gardenState = recordGardenMotorResult(gardenState, { success: true });
+    gardenState = recordGardenRuleResult(gardenState, { success: false });
+    gardenState = recordGardenDensityResult(gardenState, { success: false });
+  } else if (reason === 'motor') {
+    gardenState = recordGardenMotorResult(gardenState, { success: false });
+    gardenState = recordGardenDensityResult(gardenState, { success: false });
+  } else {
+    gardenState = recordGardenMotorResult(gardenState, { success: true });
+    gardenState = recordGardenRuleResult(gardenState, { success: true });
+    gardenState = recordGardenDensityResult(gardenState, { success: true });
+  }
+  saveGardenState(window.localStorage, gardenState);
+
+  persist();
+  updateHud();
+  updateStatusLine();
+
+  if (success) {
+    playSuccessTone();
+    speech.speak(text(pick(PRAISE_KEYS)));
+    retryTimer = window.setTimeout(() => {
+      if (currentRound !== round || currentGame?.type !== 'garden' || overlayOpen()) {
+        return;
+      }
+      startRound();
+    }, 1600);
+  } else {
+    speech.speak(text('tryAgain', { name: displayName() }));
+  }
+
+  idleState = createIdleState(performance.now());
+  scheduleIdlePrompt();
+}
+
+function renderGardenRound(round) {
+  const levels = gardenLevels();
+  gardenCleanup = renderGarden(els.stage, {
+    motorLevel: levels.motorLevel,
+    ruleLevel: levels.ruleLevel,
+    densityLevel: levels.densityLevel,
+    language: language(),
+    gender: gender(),
+    name: displayName(),
+    showTextLabels: state.showTextLabels,
+    getAudioContext: () => {
+      unlockedAudio();
+      return audioContext;
+    },
+    onPrompt: (promptText) => {
+      round.promptText = promptText;
+      idleState = createIdleState(performance.now());
+      scheduleIdlePrompt();
+      speech.speak(promptText, language(), { afterCurrent: true });
+    },
+    onSuccess: (info) => handleGardenOutcome(true, info, round),
+    onFailure: (info) => handleGardenOutcome(false, info, round),
   });
 }
 
@@ -1920,6 +2030,8 @@ function handleReset() {
   saveLaundryState(window.localStorage, laundryState);
   musicState = createDefaultMusicState();
   saveMusicState(window.localStorage, musicState);
+  gardenState = createDefaultGardenState();
+  saveGardenState(window.localStorage, gardenState);
   started = false;
   currentGame = null;
   currentRound = null;

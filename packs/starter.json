@@ -256,6 +256,22 @@
           "prompt": "בוא ננגן, {name}."
         }
       }
+    },
+    {
+      "id": "garden",
+      "type": "garden",
+      "title": "Garden",
+      "prompt": "The garden is waiting, {name}.",
+      "translations": {
+        "en": {
+          "title": "Garden",
+          "prompt": "The garden is waiting, {name}."
+        },
+        "he": {
+          "title": "גינה",
+          "prompt": "הגינה מחכה, {name}."
+        }
+      }
     }
   ]
 }

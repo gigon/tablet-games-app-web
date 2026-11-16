@@ -1039,3 +1039,342 @@ body.settings-open {
     transition: none !important;
   }
 }
+
+.garden-prompt {
+  max-width: 24ch;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(30px, 4.2vw, 54px);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+}
+
+.garden-board {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: clamp(8px, 1.6vh, 20px);
+  width: 100%;
+  max-width: 1600px;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.garden-sky {
+  flex: 0 0 clamp(28px, 7vh, 82px);
+  border-radius: clamp(18px, 3vh, 34px);
+  background:
+    radial-gradient(
+      circle at 78% 28%,
+      rgba(255, 240, 170, 0.4),
+      rgba(255, 240, 170, 0) 32%
+    ),
+    linear-gradient(180deg, rgba(87, 155, 214, 0.34), rgba(18, 61, 94, 0));
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.garden-pots {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(6px, 2vw, 34px);
+  min-height: 0;
+  width: 100%;
+  touch-action: none;
+}
+
+.garden-pot {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 430px;
+  height: 100%;
+  min-width: 0;
+  touch-action: none;
+  transform-origin: 50% 100%;
+}
+
+.garden-plant {
+  display: block;
+  font-size: clamp(64px, min(24vh, 18vw), 230px);
+  line-height: 0.86;
+  text-shadow: 0 14px 26px rgba(0, 0, 0, 0.36);
+  filter: brightness(1.06) saturate(1.08);
+  transform-origin: 50% 100%;
+  transition: filter 240ms ease, transform 240ms ease, opacity 240ms ease;
+}
+
+.garden-pots[data-count="1"] .garden-pot {
+  max-width: 560px;
+}
+
+.garden-pots[data-count="1"] .garden-plant {
+  font-size: clamp(120px, min(42vh, 36vw), 380px);
+}
+
+.garden-pots[data-count="2"] .garden-pot {
+  max-width: 480px;
+}
+
+.garden-pots[data-count="2"] .garden-plant {
+  font-size: clamp(84px, min(32vh, 25vw), 300px);
+}
+
+.garden-pot.is-thirsty .garden-plant {
+  filter: grayscale(0.6) brightness(0.7) saturate(0.5);
+  opacity: 0.88;
+  animation: garden-droop 3s ease-in-out infinite;
+}
+
+.garden-pot.is-bloomed .garden-plant,
+.garden-pot.is-finished .garden-plant {
+  opacity: 0.42;
+  filter: grayscale(0.4) brightness(0.82);
+}
+
+.garden-plant-name {
+  position: relative;
+  z-index: 2;
+  max-width: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: clamp(20px, 2.4vw, 32px);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+}
+
+.garden-pot-base {
+  position: relative;
+  display: block;
+  flex: none;
+  width: min(76%, 260px);
+  height: clamp(46px, 12vh, 118px);
+  margin-top: -6px;
+  border-radius: 16% 16% 30% 30% / 12% 12% 46% 46%;
+  background:
+    linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0) 42%
+    ),
+    linear-gradient(180deg, #c96a44 0%, #9d4b2c 58%, #71331e 100%);
+  box-shadow:
+    inset 0 -10px 18px rgba(0, 0, 0, 0.28),
+    0 14px 24px rgba(0, 0, 0, 0.36);
+}
+
+.garden-pot-base::before {
+  content: "";
+  position: absolute;
+  top: -10%;
+  left: -7%;
+  width: 114%;
+  height: 34%;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, #da7b51 0%, #a9502e 100%);
+  box-shadow:
+    inset 0 4px 0 rgba(255, 255, 255, 0.18),
+    0 4px 10px rgba(0, 0, 0, 0.24);
+}
+
+.garden-pot.is-shaking {
+  animation: garden-shake 520ms ease-in-out;
+}
+
+.garden-pot.is-pulsing {
+  animation: garden-pulse 640ms ease;
+}
+
+.garden-plant.is-growing {
+  animation: garden-pop 540ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.garden-drop {
+  position: absolute;
+  top: 2%;
+  left: 50%;
+  z-index: 4;
+  font-size: clamp(28px, 4.4vh, 54px);
+  line-height: 1;
+  pointer-events: none;
+  animation: garden-drop-fall 430ms ease-in forwards;
+}
+
+.garden-butterfly {
+  position: absolute;
+  top: 8%;
+  left: -14%;
+  z-index: 5;
+  font-size: clamp(46px, 8vh, 100px);
+  line-height: 1;
+  pointer-events: none;
+  animation: garden-fly 1500ms ease-in-out forwards;
+}
+
+.garden-flyer {
+  position: absolute;
+  z-index: 6;
+  font-size: clamp(56px, 10vh, 130px);
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition:
+    transform 760ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 760ms ease;
+  will-change: transform;
+}
+
+.garden-shelf {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(3px, 1vw, 12px);
+  min-height: clamp(46px, 8vh, 86px);
+  padding: 2px clamp(6px, 2vw, 24px) 4px;
+  border-top: 3px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18));
+  border-radius: 0 0 clamp(14px, 2.4vh, 26px) clamp(14px, 2.4vh, 26px);
+  transition: opacity 220ms ease;
+}
+
+.garden-shelf.is-empty {
+  opacity: 0.45;
+}
+
+.garden-shelf-flower {
+  font-size: clamp(28px, 5vh, 58px);
+  line-height: 1;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.42));
+  animation: garden-shelf-in 420ms ease-out;
+}
+
+@keyframes garden-droop {
+  0%,
+  100% {
+    transform: rotate(-8deg) translateY(7px) scale(0.96);
+  }
+  50% {
+    transform: rotate(-5deg) translateY(4px) scale(0.97);
+  }
+}
+
+@keyframes garden-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  18% {
+    transform: translateX(-9px) rotate(-2deg);
+  }
+  36% {
+    transform: translateX(8px) rotate(2deg);
+  }
+  54% {
+    transform: translateX(-6px) rotate(-1deg);
+  }
+  72% {
+    transform: translateX(4px) rotate(1deg);
+  }
+}
+
+@keyframes garden-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  45% {
+    transform: scale(1.05);
+    filter: brightness(1.5) drop-shadow(0 0 24px rgba(255, 255, 255, 0.72));
+  }
+}
+
+@keyframes garden-pop {
+  0% {
+    transform: scale(0.82);
+  }
+  55% {
+    transform: scale(1.09);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes garden-drop-fall {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(0.82);
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 230%) scale(0.58);
+  }
+}
+
+@keyframes garden-fly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(-8deg);
+  }
+  16% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(58vw, -7vh) rotate(7deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(124vw, 5vh) rotate(-5deg);
+  }
+}
+
+@keyframes garden-shelf-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .garden-pot.is-thirsty .garden-plant,
+  .garden-pot.is-shaking,
+  .garden-pot.is-pulsing,
+  .garden-plant.is-growing,
+  .garden-drop,
+  .garden-butterfly,
+  .garden-shelf-flower {
+    animation: none !important;
+  }
+
+  .garden-flyer {
+    transition: none !important;
+  }
+}

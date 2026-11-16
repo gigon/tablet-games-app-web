@@ -19,6 +19,13 @@ export const PHRASES = Object.freeze([
   Object.freeze({ id: '25', he: 'הכחול.', en: 'The blue one.' }),
   Object.freeze({ id: '26', he: 'הירוק.', en: 'The green one.' }),
   Object.freeze({ id: '27', he: 'הצהוב.', en: 'The yellow one.' }),
+  Object.freeze({ id: '40', he: 'הגינה מחכה.', en: 'The garden is waiting.' }),
+  Object.freeze({ id: '41', he: 'מי צמא?', en: 'Who is thirsty?' }),
+  Object.freeze({ id: '42', he: 'הפרח הצהוב.', en: 'The yellow flower.' }),
+  Object.freeze({ id: '43', he: 'הפרח האדום.', en: 'The red flower.' }),
+  Object.freeze({ id: '44', he: 'הפרח הוורוד.', en: 'The pink flower.' }),
+  Object.freeze({ id: '45', he: 'הפרח הלבן.', en: 'The white flower.' }),
+  Object.freeze({ id: '46', he: 'הוא פרח.', en: 'It bloomed.' }),
 ]);
 
 function normalise(text) {

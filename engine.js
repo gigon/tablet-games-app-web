@@ -7,7 +7,7 @@ import {
 } from './i18n.js';
 import { validateSong } from './music-logic.js';
 
-export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count', 'laundry', 'music']);
+export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count', 'laundry', 'music', 'garden']);
 
 export const MIN_LEVEL = 1;
 export const MAX_LEVEL = 5;
@@ -133,6 +133,13 @@ export const LEVEL_PARAMS = Object.freeze({
     4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
     5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
   }),
+  garden: Object.freeze({
+    1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
+    2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
+    3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
+    4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
+    5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
+  }),
 });
 
 export const BUILTIN_STARTER_PACK = Object.freeze({
@@ -173,6 +180,22 @@ export const BUILTIN_STARTER_PACK = Object.freeze({
         },
       },
     },
+    {
+      id: 'garden',
+      type: 'garden',
+      title: 'Garden',
+      prompt: 'The garden is waiting, {name}.',
+      translations: {
+        en: {
+          title: 'Garden',
+          prompt: 'The garden is waiting, {name}.',
+        },
+        he: {
+          title: 'גינה',
+          prompt: 'הגינה מחכה, {name}.',
+        },
+      },
+    },
   ],
 });
 
@@ -198,6 +221,7 @@ function normalizeLevels(levels) {
     count: clampLevel(source.count),
     laundry: clampLevel(source.laundry),
     music: clampLevel(source.music),
+    garden: clampLevel(source.garden),
   };
 }
 
@@ -216,6 +240,7 @@ function normalizeFixedLevels(levels) {
     count: normalizeFixedLevel(source.count),
     laundry: normalizeFixedLevel(source.laundry),
     music: normalizeFixedLevel(source.music),
+    garden: normalizeFixedLevel(source.garden),
   };
 }
 
@@ -298,8 +323,16 @@ export function createDefaultState(name = '') {
       count: MIN_LEVEL,
       laundry: MIN_LEVEL,
       music: MIN_LEVEL,
+      garden: MIN_LEVEL,
     },
-    fixedLevels: { buttons: null, drag: null, count: null, laundry: null, music: null },
+    fixedLevels: {
+      buttons: null,
+      drag: null,
+      count: null,
+      laundry: null,
+      music: null,
+      garden: null,
+    },
     selectedGame: null,
     speechMuted: false,
     voiceURI: null,
@@ -312,6 +345,7 @@ export function createDefaultState(name = '') {
       count: { successes: 0, failures: 0, recent: [] },
       laundry: { successes: 0, failures: 0, recent: [] },
       music: { successes: 0, failures: 0, recent: [] },
+      garden: { successes: 0, failures: 0, recent: [] },
     },
   };
 }

@@ -17,6 +17,7 @@ const EN_COLORS = Object.freeze({
   orange: 'orange',
   purple: 'purple',
   pink: 'pink',
+  white: 'white',
 });
 
 const HE_COLORS = Object.freeze({
@@ -26,7 +27,8 @@ const HE_COLORS = Object.freeze({
   green: 'ירוק',
   orange: 'כתום',
   purple: 'סגול',
-  pink: 'ורוד',
+  pink: 'וורוד',
+  white: 'לבן',
 });
 
 export const STRINGS = Object.freeze({
@@ -80,9 +82,15 @@ export const STRINGS = Object.freeze({
     typeCount: 'counting',
     typeLaundry: 'laundry',
     typeMusic: 'music',
+    typeGarden: 'garden',
     musicStart: "Let's play together.",
     musicWhereLight: 'Where is the light?',
     musicEnd: 'That sounds lovely.',
+    gardenStart: 'The garden is waiting.',
+    gardenThirsty: 'Who is thirsty?',
+    gardenColourPrompt: 'The {color} flower.',
+    gardenBloom: 'It bloomed.',
+    gardenShelf: 'Shelf',
     laundryPrompt: 'Put {item} in the machine.',
     putIn: 'Put',
     laundryShirt: 'the shirt',
@@ -174,9 +182,15 @@ export const STRINGS = Object.freeze({
     typeCount: 'ספירה',
     typeLaundry: 'כיבוס',
     typeMusic: 'נגינה',
+    typeGarden: 'גינה',
     musicStart: 'ננגן ביחד.',
     musicWhereLight: 'איפה האור?',
     musicEnd: 'זה נשמע יפה.',
+    gardenStart: 'הגינה מחכה.',
+    gardenThirsty: 'מי צמא?',
+    gardenColourPrompt: 'הפרח ה{color}.',
+    gardenBloom: 'הוא פרח.',
+    gardenShelf: 'מדף',
     laundryPrompt: '{put} {item} במכונה.',
     putIn: Object.freeze({ m: 'שים', f: 'שמי' }),
     laundryShirt: 'את החולצה',
