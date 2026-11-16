@@ -110,6 +110,22 @@
         "en": { "title": "Count the stars", "prompt": "How many stars do you see, {name}?" },
         "he": { "title": "כוכבים", "prompt": "כמה כוכבים יש, {name}?" }
       }
+    },
+    {
+      "id": "laundry",
+      "type": "laundry",
+      "title": "Laundry",
+      "prompt": "Put the laundry in the machine, {name}.",
+      "translations": {
+        "en": {
+          "title": "Laundry",
+          "prompt": "Put the laundry in the machine, {name}."
+        },
+        "he": {
+          "title": "כיבוס",
+          "prompt": "שים את הכביסה במכונה, {name}."
+        }
+      }
     }
   ]
 }

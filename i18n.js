@@ -39,11 +39,14 @@ export const STRINGS = Object.freeze({
     namePlaceholder: 'Your name',
     start: 'Start',
     starting: 'Starting…',
-    hint: 'Two fingers, held in a corner for two seconds, open the menu.',
+    hint: 'Keep Settings 1 and Settings 2 pressed together for two seconds.',
     yourName: 'Your name',
     save: 'Save',
     cancel: 'Cancel',
     menuTitle: 'Menu',
+    settingsTitle: 'Settings',
+    settings1: 'Settings 1',
+    settings2: 'Settings 2',
     resume: 'Resume',
     changeName: 'Change name',
     exit: 'Exit',
@@ -52,6 +55,31 @@ export const STRINGS = Object.freeze({
     language: 'Language',
     gender: 'Gender',
     themes: 'Themes',
+    name: 'Name',
+    muteSpeech: 'Mute speech',
+    chooseGame: 'Game',
+    autoMix: 'Auto mix',
+    chooseLevel: 'Level',
+    auto: 'Auto',
+    levelFor: 'Level for {type}',
+    typeButtons: 'buttons',
+    typeDrag: 'drag',
+    typeCount: 'counting',
+    typeLaundry: 'laundry',
+    laundryPrompt: 'Put {item} in the machine, {name}.',
+    putIn: 'Put',
+    laundryShirt: 'the shirt',
+    laundrySock: 'the sock',
+    laundryTowel: 'the towel',
+    showTextLabels: 'Show text labels',
+    showStatusLine: 'Show status line',
+    voice: 'Voice',
+    voiceAuto: 'Default voice',
+    speechRate: 'Speech rate',
+    rateSlow: 'Slow',
+    rateNormal: 'Normal',
+    rateFast: 'Fast',
+    statusLine: '{game} · Level {level} · {minutes} min',
     languageHebrew: 'Hebrew',
     languageEnglish: 'English',
     genderMale: 'Masculine',
@@ -85,11 +113,14 @@ export const STRINGS = Object.freeze({
     namePlaceholder: 'השם שלך',
     start: Object.freeze({ m: 'התחל', f: 'התחלי' }),
     starting: Object.freeze({ m: 'מתחיל…', f: 'מתחילה…' }),
-    hint: 'שתי אצבעות בפינה למשך שתי שניות פותחות את התפריט.',
+    hint: 'יש להחזיק את הגדרות 1 והגדרות 2 יחד למשך שתי שניות.',
     yourName: 'השם שלך',
     save: Object.freeze({ m: 'שמור', f: 'שמרי' }),
     cancel: Object.freeze({ m: 'בטל', f: 'בטלי' }),
     menuTitle: 'תפריט',
+    settingsTitle: 'הגדרות',
+    settings1: 'הגדרות 1',
+    settings2: 'הגדרות 2',
     resume: Object.freeze({ m: 'המשך', f: 'המשיכי' }),
     changeName: Object.freeze({ m: 'שנה שם', f: 'שני שם' }),
     exit: 'יציאה',
@@ -98,6 +129,31 @@ export const STRINGS = Object.freeze({
     language: 'שפה',
     gender: 'מין',
     themes: 'נושאים',
+    name: 'שם',
+    muteSpeech: 'השתקת דיבור',
+    chooseGame: 'משחק',
+    autoMix: 'מעבר אוטומטי',
+    chooseLevel: 'שלב',
+    auto: 'אוטומטי',
+    levelFor: 'שלב עבור {type}',
+    typeButtons: 'כפתורים',
+    typeDrag: 'גרירה',
+    typeCount: 'ספירה',
+    typeLaundry: 'כיבוס',
+    laundryPrompt: '{put} {item} במכונה, {name}.',
+    putIn: Object.freeze({ m: 'שים', f: 'שמי' }),
+    laundryShirt: 'את החולצה',
+    laundrySock: 'את הגרב',
+    laundryTowel: 'את המגבת',
+    showTextLabels: 'הצגת תוויות טקסט',
+    showStatusLine: 'הצגת שורת מצב',
+    voice: 'קול',
+    voiceAuto: 'קול ברירת מחדל',
+    speechRate: 'קצב דיבור',
+    rateSlow: 'אט',
+    rateNormal: 'רגיל',
+    rateFast: 'מהיר',
+    statusLine: '{game} · שלב {level} · {minutes} דק׳',
     languageHebrew: 'עברית',
     languageEnglish: 'English',
     genderMale: 'לשון זכר',
@@ -199,6 +255,33 @@ export function themeName(theme, language) {
 
 export function itemName(item, language) {
   return localizedName(item, language);
+}
+
+const LAUNDRY_ITEM_KEYS = Object.freeze({
+  shirt: 'laundryShirt',
+  sock: 'laundrySock',
+  towel: 'laundryTowel',
+});
+
+export function laundryItemName(language, kind) {
+  const key = LAUNDRY_ITEM_KEYS[kind] || LAUNDRY_ITEM_KEYS.shirt;
+  return t(language, key);
+}
+
+export function formatLaundryPrompt(
+  { language, gender = DEFAULT_GENDER, name = '', kind = 'shirt' } = {},
+) {
+  const lang = normalizeLanguage(language);
+  return t(
+    lang,
+    'laundryPrompt',
+    {
+      put: t(lang, 'putIn', {}, gender),
+      item: laundryItemName(lang, kind),
+      name,
+    },
+    gender,
+  );
 }
 
 export function formatPrompt(

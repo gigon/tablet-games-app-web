@@ -3,23 +3,32 @@ import {
   COLOR_TONES,
   PACKS_CACHE_KEY,
   ROUNDS_PER_TYPE,
-  chooseNextGame,
+  chooseGameForRound,
   createDefaultState,
   createIdleState,
+  effectiveLevel,
   getLevelParams,
   idlePromptDelay,
   loadState,
   markIdlePromptRepeated,
+  minutesPlayed,
   noteTouch,
   packsToGames,
   packsToThemes,
   recordResult,
   resolveThemes,
   saveState,
+  setFixedLevel as setStateFixedLevel,
   setGender as setStateGender,
   setLanguage as setStateLanguage,
   setName,
+  setSelectedGame as setStateSelectedGame,
+  setShowStatusLine as setStateShowStatusLine,
+  setShowTextLabels as setStateShowTextLabels,
+  setSpeechMuted as setStateSpeechMuted,
+  setSpeechRate as setStateSpeechRate,
   setThemes as setStateThemes,
+  setVoiceURI as setStateVoiceURI,
   shouldRepeatIdlePrompt,
   STORAGE_KEY,
   themeItems,
@@ -28,16 +37,26 @@ import {
 } from './engine.js';
 import {
   SPEECH_LANGS,
+  formatLaundryPrompt,
   formatPrompt as buildPrompt,
   formatText,
   gameColorName,
   gameText,
   itemName,
+  laundryItemName,
   normalizeGender,
   normalizeLanguage,
   t,
   themeName,
 } from './i18n.js';
+import {
+  createDefaultLaundryState,
+  loadLaundryState,
+  recordMotorResult,
+  recordRuleResult,
+  saveLaundryState,
+} from './laundry-logic.js';
+import { renderLaundry } from './laundry.js';
 import {
   MIN_TOUCH_DURATION_MS,
   SAFE_MARGIN,
@@ -47,8 +66,8 @@ import {
 } from './touch.js';
 
 const PRAISE_KEYS = ['praiseGood', 'praiseWellDone'];
-const CORNER_SIZE = 180;
-const LONG_PRESS_MS = 2000;
+const SETTINGS_HOLD_MS = 2000;
+const STATUS_UPDATE_MS = 15000;
 const PACK_FETCH_TIMEOUT_MS = 5000;
 const DROP_TOLERANCE_PX = 64;
 const SNAP_BACK_MS = 260;
@@ -57,32 +76,47 @@ const els = {
   stage: document.getElementById('stage'),
   gameTitle: document.getElementById('game-title'),
   status: document.getElementById('status'),
+  statusLine: document.getElementById('status-line'),
   welcome: document.getElementById('welcome'),
   welcomeTitle: document.getElementById('welcome-title'),
   nameLabel: document.getElementById('name-label'),
   nameInput: document.getElementById('name-input'),
   startButton: document.getElementById('start-button'),
   hint: document.getElementById('hint'),
-  nameDialog: document.getElementById('name-dialog'),
-  nameDialogTitle: document.getElementById('name-dialog-title'),
-  renameInput: document.getElementById('rename-input'),
-  renameSave: document.getElementById('rename-save'),
-  renameCancel: document.getElementById('rename-cancel'),
-  menu: document.getElementById('menu'),
-  menuTitle: document.getElementById('menu-title'),
-  menuResume: document.getElementById('menu-resume'),
-  menuRename: document.getElementById('menu-rename'),
-  menuLanguage: document.getElementById('menu-language'),
-  menuGender: document.getElementById('menu-gender'),
+  settings: document.getElementById('settings'),
+  settingsTitle: document.getElementById('settings-title'),
+  settingsResume: document.getElementById('settings-resume'),
+  settingMute: document.getElementById('setting-mute'),
+  muteLabel: document.getElementById('mute-label'),
+  gameLabel: document.getElementById('game-label'),
+  settingGame: document.getElementById('setting-game'),
+  levelLabel: document.getElementById('level-label'),
+  settingLevel: document.getElementById('setting-level'),
+  settingLanguage: document.getElementById('setting-language'),
   languageLabel: document.getElementById('language-label'),
+  settingGender: document.getElementById('setting-gender'),
   genderLabel: document.getElementById('gender-label'),
+  settingName: document.getElementById('setting-name'),
+  nameSettingLabel: document.getElementById('name-setting-label'),
   themesLabel: document.getElementById('themes-label'),
-  menuThemes: document.getElementById('menu-themes'),
-  menuExit: document.getElementById('menu-exit'),
-  menuReset: document.getElementById('menu-reset'),
+  settingsThemes: document.getElementById('settings-themes'),
+  textLabelsLabel: document.getElementById('text-labels-label'),
+  settingTextLabels: document.getElementById('setting-text-labels'),
+  statusLineLabel: document.getElementById('status-line-label'),
+  settingStatusLine: document.getElementById('setting-status-line'),
+  voiceLabel: document.getElementById('voice-label'),
+  settingVoice: document.getElementById('setting-voice'),
+  rateLabel: document.getElementById('rate-label'),
+  settingRate: document.getElementById('setting-rate'),
+  settingsExit: document.getElementById('settings-exit'),
+  settingsReset: document.getElementById('settings-reset'),
+  settingsZone1: document.getElementById('settings-zone-1'),
+  settingsZone2: document.getElementById('settings-zone-2'),
 };
 
 let state = loadState(window.localStorage);
+let laundryState = loadLaundryState(window.localStorage);
+let laundryCleanup = null;
 let games = [];
 let allThemes = [];
 let packsReady = null;
@@ -90,6 +124,7 @@ let started = false;
 let currentGame = null;
 let currentRound = null;
 let roundsInType = 0;
+let gameSessionStartedAt = null;
 let retryTimer = null;
 let idleTimer = null;
 let idleState = createIdleState(0);
@@ -98,6 +133,8 @@ let resetDisarmTimer = null;
 let audioContext = null;
 let activePointers = new Set();
 let multiTouchGesture = false;
+let settingsPointers = new Map();
+let settingsHoldTimer = null;
 
 function language() {
   return normalizeLanguage(state.language);
@@ -111,15 +148,24 @@ function text(key, values = {}) {
   return t(language(), key, values, gender());
 }
 
-function findVoice(lang) {
+function availableVoices() {
   try {
     const voices = window.speechSynthesis.getVoices();
-    const prefix = lang === 'he' ? 'he' : 'en';
-    const matches = (voice) => voice.lang.replace('_', '-').toLowerCase().startsWith(prefix);
-    return voices.find((voice) => matches(voice) && voice.localService) || voices.find(matches) || null;
+    return Array.isArray(voices) ? voices : [];
   } catch {
-    return null;
+    return [];
   }
+}
+
+function findVoice(lang) {
+  const voices = availableVoices();
+  if (state.voiceURI) {
+    const chosen = voices.find((voice) => voice.voiceURI === state.voiceURI);
+    if (chosen) return chosen;
+  }
+  const prefix = lang === 'he' ? 'he' : 'en';
+  const matches = (voice) => voice.lang.replace('_', '-').toLowerCase().startsWith(prefix);
+  return voices.find((voice) => matches(voice) && voice.localService) || voices.find(matches) || null;
 }
 
 const speech = {
@@ -127,12 +173,12 @@ const speech = {
     typeof window.speechSynthesis !== 'undefined' &&
     typeof window.SpeechSynthesisUtterance !== 'undefined',
   speak(message, lang = language()) {
-    if (!this.available || !message) return;
+    if (!this.available || !message || state.speechMuted) return;
     try {
       window.speechSynthesis.cancel();
       const utterance = new window.SpeechSynthesisUtterance(String(message));
       utterance.lang = SPEECH_LANGS[lang] || SPEECH_LANGS.en;
-      utterance.rate = 0.88;
+      utterance.rate = Number(state.speechRate) || 0.88;
       utterance.pitch = 1;
       utterance.volume = 1;
       const voice = findVoice(lang);
@@ -159,6 +205,8 @@ function loadVoices() {
   } catch {
     /* ignore */
   }
+  renderVoiceChooser();
+  syncSettingsFields();
 }
 
 function displayName() {
@@ -264,8 +312,131 @@ function persist() {
 function updateHud() {
   const title = currentGame ? gameText(currentGame, language()).title : '';
   els.gameTitle.textContent = title || text('appTitle');
-  const level = currentGame ? state.levels[currentGame.type] || 1 : 1;
+  const level = currentGame ? effectiveLevel(state, currentGame.type) : 1;
   els.status.textContent = text('level', { level });
+}
+
+function updateStatusLine() {
+  if (!els.statusLine) return;
+  if (!state.showStatusLine || !started || !currentGame) {
+    els.statusLine.classList.add('hidden');
+    return;
+  }
+  const game = gameText(currentGame, language()).title || text('appTitle');
+  const level = effectiveLevel(state, currentGame.type);
+  const minutes = minutesPlayed(gameSessionStartedAt, performance.now());
+  els.statusLine.textContent = text('statusLine', { game, level, minutes });
+  els.statusLine.classList.remove('hidden');
+}
+
+function gameTypeLabel(type) {
+  const keys = {
+    buttons: 'typeButtons',
+    drag: 'typeDrag',
+    count: 'typeCount',
+    laundry: 'typeLaundry',
+  };
+  return text(keys[type] || 'typeButtons');
+}
+
+function chosenGame() {
+  if (!state.selectedGame) return null;
+  return games.find((game) => game.id === state.selectedGame) || null;
+}
+
+function currentSettingsGameType() {
+  const fixed = chosenGame();
+  if (fixed) return fixed.type;
+  if (currentGame) return currentGame.type;
+  return games[0]?.type || 'buttons';
+}
+
+function renderGameChooser() {
+  if (!els.settingGame) return;
+  els.settingGame.replaceChildren();
+
+  const auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = text('autoMix');
+  els.settingGame.append(auto);
+
+  for (const game of games) {
+    const option = document.createElement('option');
+    option.value = game.id;
+    option.textContent = gameText(game, language()).title || game.id;
+    els.settingGame.append(option);
+  }
+
+  const hasSelected = games.some((game) => game.id === state.selectedGame);
+  els.settingGame.value = hasSelected ? state.selectedGame : '';
+}
+
+function renderLevelChooser() {
+  if (!els.settingLevel) return;
+  const type = currentSettingsGameType();
+  els.levelLabel.textContent = text('levelFor', { type: gameTypeLabel(type) });
+  els.settingLevel.replaceChildren();
+
+  const auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = text('auto');
+  els.settingLevel.append(auto);
+
+  for (let level = 1; level <= 5; level += 1) {
+    const option = document.createElement('option');
+    option.value = String(level);
+    option.textContent = text('level', { level });
+    els.settingLevel.append(option);
+  }
+
+  const fixed = state.fixedLevels[type];
+  els.settingLevel.value = fixed === null ? '' : String(fixed);
+}
+
+function renderRateChooser() {
+  if (!els.settingRate) return;
+  const keys = { '0.7': 'rateSlow', '0.88': 'rateNormal', '1.15': 'rateFast' };
+  for (const option of els.settingRate.options) {
+    option.textContent = text(keys[option.value] || 'rateNormal');
+  }
+  els.settingRate.value = String(state.speechRate);
+}
+
+function renderVoiceChooser() {
+  if (!els.settingVoice) return;
+  const voices = availableVoices();
+  els.settingVoice.replaceChildren();
+
+  const auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = text('voiceAuto');
+  els.settingVoice.append(auto);
+
+  for (const voice of voices) {
+    const option = document.createElement('option');
+    option.value = voice.voiceURI;
+    option.textContent = `${voice.name} (${voice.lang})`;
+    els.settingVoice.append(option);
+  }
+
+  els.settingVoice.value = state.voiceURI || '';
+}
+
+function syncSettingsFields() {
+  if (!els.settings) return;
+  els.settingMute.checked = state.speechMuted;
+  els.settingTextLabels.checked = state.showTextLabels;
+  els.settingStatusLine.checked = state.showStatusLine;
+  if (document.activeElement !== els.settingName) els.settingName.value = state.name;
+  els.settingGame.value = chosenGame() ? state.selectedGame : '';
+  const type = currentSettingsGameType();
+  const fixed = state.fixedLevels[type];
+  els.settingLevel.value = fixed === null ? '' : String(fixed);
+  els.settingLanguage.value = language();
+  els.settingGender.value = gender();
+  const voiceValues = new Set([...els.settingVoice.options].map((option) => option.value));
+  els.settingVoice.value = voiceValues.has(state.voiceURI) ? state.voiceURI : '';
+  els.settingRate.value = String(state.speechRate);
 }
 
 function applyLanguage() {
@@ -282,42 +453,49 @@ function applyLanguage() {
   els.startButton.textContent = text('start');
   els.hint.textContent = text('hint');
 
-  els.nameDialogTitle.textContent = text('yourName');
-  els.renameInput.placeholder = text('namePlaceholder');
-  els.renameSave.textContent = text('save');
-  els.renameCancel.textContent = text('cancel');
-
-  els.menuTitle.textContent = text('menuTitle');
-  els.menuResume.textContent = text('resume');
-  els.menuRename.textContent = text('changeName');
+  els.settingsTitle.textContent = text('settingsTitle');
+  els.settingsResume.textContent = text('resume');
+  els.muteLabel.textContent = text('muteSpeech');
+  els.gameLabel.textContent = text('chooseGame');
   els.languageLabel.textContent = text('language');
   els.genderLabel.textContent = text('gender');
-  els.menuExit.textContent = text('exit');
-  els.menuReset.textContent = resetArmed ? text('resetConfirm') : text('reset');
+  els.nameSettingLabel.textContent = text('name');
+  els.settingName.placeholder = text('namePlaceholder');
+  els.themesLabel.textContent = text('themes');
+  els.textLabelsLabel.textContent = text('showTextLabels');
+  els.statusLineLabel.textContent = text('showStatusLine');
+  els.voiceLabel.textContent = text('voice');
+  els.rateLabel.textContent = text('speechRate');
+  els.settingsExit.textContent = text('exit');
+  els.settingsReset.textContent = resetArmed ? text('resetConfirm') : text('reset');
+  els.settingsZone1.textContent = text('settings1');
+  els.settingsZone2.textContent = text('settings2');
 
   const languageKeys = { he: 'languageHebrew', en: 'languageEnglish' };
-  for (const option of els.menuLanguage.options) {
+  for (const option of els.settingLanguage.options) {
     option.textContent = text(languageKeys[option.value] || 'languageEnglish');
   }
   const genderKeys = { m: 'genderMale', f: 'genderFemale' };
-  for (const option of els.menuGender.options) {
+  for (const option of els.settingGender.options) {
     option.textContent = text(genderKeys[option.value] || 'genderMale');
   }
 
-  els.menuLanguage.value = lang;
-  els.menuGender.value = gender();
-  els.themesLabel.textContent = text('themes');
   renderThemeChooser();
-
+  renderGameChooser();
+  renderLevelChooser();
+  renderRateChooser();
+  renderVoiceChooser();
+  syncSettingsFields();
   updateHud();
+  updateStatusLine();
 }
 
 function renderThemeChooser() {
-  if (!els.menuThemes) return;
+  if (!els.settingsThemes) return;
   const selected =
     state.themes === null ? new Set(allThemes.map((theme) => theme.id)) : new Set(state.themes);
 
-  els.menuThemes.replaceChildren();
+  els.settingsThemes.replaceChildren();
   for (const theme of allThemes) {
     const label = document.createElement('label');
     label.className = 'theme-option';
@@ -328,9 +506,9 @@ function renderThemeChooser() {
     checkbox.value = theme.id;
     checkbox.checked = selected.has(theme.id);
     checkbox.addEventListener('change', () => {
-      const checked = [...els.menuThemes.querySelectorAll('input[type="checkbox"]:checked')].map(
-        (input) => input.value,
-      );
+      const checked = [
+        ...els.settingsThemes.querySelectorAll('input[type="checkbox"]:checked'),
+      ].map((input) => input.value);
       state = setStateThemes(state, checked);
       persist();
     });
@@ -339,7 +517,7 @@ function renderThemeChooser() {
     name.textContent = themeName(theme, language());
 
     label.append(checkbox, name);
-    els.menuThemes.append(label);
+    els.settingsThemes.append(label);
   }
 }
 
@@ -453,14 +631,16 @@ function refreshGames(packs) {
   allThemes = packsToThemes(packs);
   if (!games.length) games = packsToGames([BUILTIN_STARTER_PACK]);
   if (!allThemes.length) allThemes = packsToThemes([BUILTIN_STARTER_PACK]);
-  if (els.menuThemes) renderThemeChooser();
+  renderThemeChooser();
+  renderGameChooser();
+  renderLevelChooser();
+  syncSettingsFields();
 }
 
 function overlayOpen() {
   return (
     !els.welcome.classList.contains('hidden') ||
-    !els.menu.classList.contains('hidden') ||
-    !els.nameDialog.classList.contains('hidden')
+    !els.settings.classList.contains('hidden')
   );
 }
 
@@ -469,6 +649,10 @@ function clearRoundTimers() {
   window.clearTimeout(idleTimer);
   retryTimer = null;
   idleTimer = null;
+  if (laundryCleanup) {
+    laundryCleanup();
+    laundryCleanup = null;
+  }
 }
 
 function markTouch() {
@@ -503,6 +687,16 @@ function scheduleIdlePrompt() {
 function createRound(game, params) {
   const items = selectedItems();
   const useItems = items.length > 0;
+
+  if (game.type === 'laundry') {
+    return {
+      type: 'laundry',
+      promptText: '',
+      silentPrompt: true,
+      startedAt: performance.now(),
+      done: false,
+    };
+  }
 
   if (game.type === 'buttons') {
     if (useItems) {
@@ -573,24 +767,32 @@ function startRound(gameOverride = null) {
 
   if (!games.length) refreshGames([BUILTIN_STARTER_PACK]);
 
-  if (gameOverride) {
+  const previousGameId = currentGame?.id ?? null;
+  const fixed = chosenGame();
+
+  if (gameOverride && !fixed) {
     currentGame = gameOverride;
   } else if (!currentGame) {
-    currentGame = chooseNextGame(games, null, 0) || games[0];
+    currentGame = chooseGameForRound(games, state, null, 0) || games[0];
     roundsInType = 1;
   } else {
     const previousType = currentGame.type;
-    currentGame = chooseNextGame(games, currentGame, roundsInType) || games[0];
+    currentGame = chooseGameForRound(games, state, currentGame, roundsInType) || games[0];
     roundsInType = currentGame.type === previousType ? roundsInType + 1 : 1;
   }
 
-  const level = state.levels[currentGame.type] || 1;
+  if (gameSessionStartedAt === null || previousGameId !== currentGame.id) {
+    gameSessionStartedAt = performance.now();
+  }
+
+  const level = effectiveLevel(state, currentGame.type);
   const params = getLevelParams(currentGame.type, level);
   currentRound = createRound(currentGame, params);
 
   updateHud();
   renderRound(currentGame, params, currentRound);
-  speech.speak(currentRound.promptText);
+  updateStatusLine();
+  if (!currentRound.silentPrompt) speech.speak(currentRound.promptText);
 
   idleState = createIdleState(performance.now());
   scheduleIdlePrompt();
@@ -603,18 +805,118 @@ function promptElement(text) {
   return heading;
 }
 
+function setChoiceColumns(choices, count) {
+  const columns = count <= 2 ? Math.max(1, count) : count <= 4 ? 2 : 3;
+  choices.style.setProperty('--cols', String(columns));
+}
+
 function renderRound(game, params, round) {
-  els.stage.replaceChildren(promptElement(round.promptText));
+  els.stage.replaceChildren();
+  if (state.showTextLabels && game.type !== 'laundry') {
+    els.stage.append(promptElement(round.promptText));
+  }
   els.stage.dataset.game = game.type;
 
   if (game.type === 'buttons') renderButtons(game, params, round);
   else if (game.type === 'count') renderCount(params, round);
+  else if (game.type === 'laundry') renderLaundryRound(round);
   else renderDrag(params, round);
+}
+
+function laundryLevels() {
+  const fixed = state.fixedLevels.laundry;
+  const motorLevel =
+    fixed === null || fixed === undefined
+      ? laundryState.motor.level
+      : Math.min(4, Math.max(1, Math.round(Number(fixed) || 1)));
+  const ruleLevel = Math.min(3, Math.max(1, laundryState.rule.level));
+  return { motorLevel, ruleLevel };
+}
+
+function laundryPrompt(item) {
+  return formatLaundryPrompt({
+    language: language(),
+    gender: gender(),
+    name: displayName(),
+    kind: item.kind,
+  });
+}
+
+function handleLaundryOutcome(success, info = {}, round) {
+  if (!started || !currentGame || currentGame.type !== 'laundry' || overlayOpen()) return;
+
+  const reactionMs = Math.max(0, performance.now() - (round?.startedAt || performance.now()));
+  state = recordResult(state, 'laundry', { success, reactionMs });
+
+  const reason = info.reason;
+  if (reason === 'rule') {
+    laundryState = recordMotorResult(laundryState, { success: true });
+    laundryState = recordRuleResult(laundryState, { success: false });
+  } else if (reason === 'motor') {
+    laundryState = recordMotorResult(laundryState, { success: false });
+  } else {
+    laundryState = recordMotorResult(laundryState, { success: true });
+    laundryState = recordRuleResult(laundryState, { success: true });
+  }
+  saveLaundryState(window.localStorage, laundryState);
+
+  persist();
+  updateHud();
+  updateStatusLine();
+
+  if (success) {
+    playSuccessTone();
+    speech.speak(text(pick(PRAISE_KEYS)));
+    roundsInType += 1;
+    if (!chosenGame() && roundsInType >= ROUNDS_PER_TYPE) {
+      const scheduledGame = round;
+      retryTimer = window.setTimeout(() => {
+        if (currentRound !== scheduledGame || currentGame?.type !== 'laundry' || overlayOpen()) {
+          return;
+        }
+        startRound();
+      }, 1600);
+    }
+  } else {
+    speech.speak(text('tryAgain', { name: displayName() }));
+  }
+
+  idleState = createIdleState(performance.now());
+  scheduleIdlePrompt();
+}
+
+function renderLaundryRound(round) {
+  const levels = laundryLevels();
+  laundryCleanup = renderLaundry(els.stage, {
+    motorLevel: levels.motorLevel,
+    ruleLevel: levels.ruleLevel,
+    capacity: laundryState.machine.capacity,
+    language: language(),
+    gender: gender(),
+    name: displayName(),
+    showTextLabels: state.showTextLabels,
+    getLevels: laundryLevels,
+    itemLabel: (item) => laundryItemName(language(), item.kind),
+    promptForItem: laundryPrompt,
+    getAudioContext: () => {
+      unlockedAudio();
+      return audioContext;
+    },
+    onPrompt: (promptText) => {
+      round.promptText = promptText;
+      idleState = createIdleState(performance.now());
+      scheduleIdlePrompt();
+      speech.speak(promptText);
+    },
+    onSuccess: (info) => handleLaundryOutcome(true, info, round),
+    onFailure: (info) => handleLaundryOutcome(false, info, round),
+  });
 }
 
 function renderButtons(game, params, round) {
   const choices = document.createElement('div');
   choices.className = 'choices';
+  setChoiceColumns(choices, round.options.length);
   if (round.mode === 'items') {
     const tones = Object.values(COLOR_TONES).map((entry) => entry.tone);
     round.options.forEach((item, index) => {
@@ -630,11 +932,13 @@ function renderButtons(game, params, round) {
       emoji.textContent = item.emoji;
       emoji.setAttribute('aria-hidden', 'true');
 
-      const label = document.createElement('span');
-      label.className = 'item-name';
-      label.textContent = capitalize(name);
-
-      button.append(emoji, label);
+      button.append(emoji);
+      if (state.showTextLabels) {
+        const label = document.createElement('span');
+        label.className = 'item-name';
+        label.textContent = capitalize(name);
+        button.append(label);
+      }
       attachGameTap(button, () => {
         if (round.done) return;
         playTone(tones[index % tones.length]);
@@ -658,9 +962,11 @@ function renderButtons(game, params, round) {
     button.style.background = COLOR_TONES[color].hex;
     button.setAttribute('aria-label', text('colorButton', { color: capitalize(colorLabel(color)) }));
 
-    const label = document.createElement('span');
-    label.textContent = capitalize(colorLabel(color));
-    button.append(label);
+    if (state.showTextLabels) {
+      const label = document.createElement('span');
+      label.textContent = capitalize(colorLabel(color));
+      button.append(label);
+    }
 
     attachGameTap(button, () => {
       if (round.done) return;
@@ -688,6 +994,7 @@ function renderCount(params, round) {
 
   const choices = document.createElement('div');
   choices.className = 'choices';
+  setChoiceColumns(choices, round.options.length);
   for (const number of round.options) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -724,8 +1031,9 @@ function renderDrag(params, round) {
   const coins = document.createElement('div');
   coins.className = 'coins';
 
-  dragZone.append(dragLabel, coins);
-  dropZone.append(dropLabel);
+  dragZone.append(coins);
+  if (state.showTextLabels) dragZone.append(dragLabel);
+  if (state.showTextLabels) dropZone.append(dropLabel);
   board.append(dragZone, dropZone);
   els.stage.append(board);
 
@@ -845,6 +1153,7 @@ function submitOutcome(success, { timeout = false } = {}) {
   state = recordResult(state, currentGame.type, { success, timeout, reactionMs });
   persist();
   updateHud();
+  updateStatusLine();
 
   if (success) {
     playSuccessTone();
@@ -852,7 +1161,17 @@ function submitOutcome(success, { timeout = false } = {}) {
     retryTimer = window.setTimeout(() => startRound(), 1200);
   } else {
     speech.speak(text('tryAgain', { name: displayName() }));
-    retryTimer = window.setTimeout(() => startRound(currentGame), 1700);
+    // Retry the SAME question: a fresh random target would let a repeated wrong tap
+    // become "correct" by chance and be praised.
+    const failedRound = currentRound;
+    retryTimer = window.setTimeout(() => {
+      if (currentRound !== failedRound || !started || overlayOpen()) return;
+      failedRound.done = false;
+      failedRound.startedAt = performance.now();
+      speech.speak(failedRound.promptText);
+      idleState = createIdleState(performance.now());
+      scheduleIdlePrompt();
+    }, 1700);
   }
 }
 
@@ -900,29 +1219,33 @@ async function startApp() {
   started = true;
   currentGame = null;
   roundsInType = 0;
+  gameSessionStartedAt = null;
   updateHud();
+  updateStatusLine();
   speech.speak(text('helloPlay', { name: displayName() }));
   window.setTimeout(() => startRound(), 1300);
 }
 
-function openMenu() {
-  if (
-    !started ||
-    !els.menu.classList.contains('hidden') ||
-    !els.nameDialog.classList.contains('hidden')
-  ) {
-    return;
-  }
+function setSettingsScrolling(enabled) {
+  document.documentElement.classList.toggle('settings-open', enabled);
+  document.body.classList.toggle('settings-open', enabled);
+}
+
+function openSettings() {
+  if (!started || !els.settings.classList.contains('hidden')) return;
   clearRoundTimers();
   speech.stop();
   disarmReset();
   applyLanguage();
-  els.menu.classList.remove('hidden');
-  els.menuResume.focus({ preventScroll: true });
+  setSettingsScrolling(true);
+  els.settings.classList.remove('hidden');
+  els.settingsResume.focus({ preventScroll: true });
 }
 
-function closeMenu() {
-  els.menu.classList.add('hidden');
+function closeSettings() {
+  saveSettingsName();
+  els.settings.classList.add('hidden');
+  setSettingsScrolling(false);
   disarmReset();
   if (started) startRound(currentGame);
 }
@@ -930,13 +1253,13 @@ function closeMenu() {
 function disarmReset() {
   resetArmed = false;
   window.clearTimeout(resetDisarmTimer);
-  els.menuReset.textContent = text('reset');
+  els.settingsReset.textContent = text('reset');
 }
 
 function handleReset() {
   if (!resetArmed) {
     resetArmed = true;
-    els.menuReset.textContent = text('resetConfirm');
+    els.settingsReset.textContent = text('resetConfirm');
     resetDisarmTimer = window.setTimeout(disarmReset, 3500);
     return;
   }
@@ -948,15 +1271,18 @@ function handleReset() {
     /* ignore */
   }
   state = createDefaultState();
+  laundryState = createDefaultLaundryState();
+  saveLaundryState(window.localStorage, laundryState);
   started = false;
   currentGame = null;
   currentRound = null;
   games = [];
   roundsInType = 0;
+  gameSessionStartedAt = null;
   clearRoundTimers();
   speech.stop();
-  els.menu.classList.add('hidden');
-  els.nameDialog.classList.add('hidden');
+  els.settings.classList.add('hidden');
+  setSettingsScrolling(false);
   els.stage.replaceChildren();
   els.nameInput.value = '';
   els.welcome.classList.remove('hidden');
@@ -968,38 +1294,16 @@ function handleReset() {
   });
 }
 
-function openRename() {
-  els.menu.classList.add('hidden');
-  els.renameInput.value = state.name;
-  els.nameDialog.classList.remove('hidden');
-  els.renameInput.focus();
-  els.renameInput.select();
-}
-
-function closeRename(returnToMenu = true) {
-  els.nameDialog.classList.add('hidden');
-  if (returnToMenu) {
-    els.menu.classList.remove('hidden');
-    els.menuRename.focus({ preventScroll: true });
-  }
-}
-
-function saveRename() {
-  const name = els.renameInput.value.trim();
+function saveSettingsName() {
+  const name = els.settingName.value.trim();
   if (!name) {
-    speech.speak(text('pleaseTypeName'));
-    els.renameInput.focus();
+    els.settingName.value = state.name;
     return;
   }
+  if (name === state.name) return;
   state = setName(state, name);
   persist();
-  els.nameDialog.classList.add('hidden');
   els.nameInput.value = name;
-  applyLanguage();
-  if (started) {
-    speech.speak(text('helloShort', { name: displayName() }));
-    window.setTimeout(() => startRound(currentGame), 1100);
-  }
 }
 
 function exitApp() {
@@ -1007,14 +1311,16 @@ function exitApp() {
   currentGame = null;
   currentRound = null;
   roundsInType = 0;
+  gameSessionStartedAt = null;
   clearRoundTimers();
   speech.stop();
   disarmReset();
-  els.menu.classList.add('hidden');
-  els.nameDialog.classList.add('hidden');
+  els.settings.classList.add('hidden');
+  setSettingsScrolling(false);
   els.stage.replaceChildren();
   els.nameInput.value = state.name;
   els.welcome.classList.remove('hidden');
+  updateStatusLine();
   applyLanguage();
   if (document.fullscreenElement && document.exitFullscreen) {
     document.exitFullscreen().catch(() => {});
@@ -1068,6 +1374,7 @@ function installGlobalGuards() {
     'pointerdown',
     (event) => {
       reRequestFullscreen();
+      if (!event.target?.closest?.('.settings-zone')) markTouch();
       activePointers.add(event.pointerId);
       multiTouchGesture = activePointers.size > 1;
     },
@@ -1081,105 +1388,69 @@ function installGlobalGuards() {
   window.addEventListener('pointercancel', releasePointer, { capture: true, passive: true });
 
   window.addEventListener('blur', () => {
-    clearCornerTracking();
+    clearSettingsGesture();
     clearActivePointers();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      clearCornerTracking();
+      clearSettingsGesture();
       clearActivePointers();
     }
   });
 }
 
-let cornerPointers = new Map();
-let cornerTimer = null;
-let armedCorner = null;
-
-function cornerAt(x, y) {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const size = Math.min(CORNER_SIZE, width / 2, height / 2);
-  if (x < size && y < size) return 'top-left';
-  if (x > width - size && y < size) return 'top-right';
-  if (x < size && y > height - size) return 'bottom-left';
-  if (x > width - size && y > height - size) return 'bottom-right';
-  return null;
+function clearSettingsGesture() {
+  settingsPointers = new Map();
+  window.clearTimeout(settingsHoldTimer);
+  settingsHoldTimer = null;
 }
 
-function clearCornerTracking() {
-  cornerPointers = new Map();
-  window.clearTimeout(cornerTimer);
-  cornerTimer = null;
-  armedCorner = null;
+function bothSettingsHeld() {
+  const zones = new Set(settingsPointers.values());
+  return zones.has(0) && zones.has(1);
 }
 
-function checkCornerPress() {
-  if (cornerPointers.size !== 2) {
-    window.clearTimeout(cornerTimer);
-    cornerTimer = null;
-    armedCorner = null;
+function checkSettingsHold() {
+  if (!bothSettingsHeld()) {
+    window.clearTimeout(settingsHoldTimer);
+    settingsHoldTimer = null;
     return;
   }
+  if (settingsHoldTimer !== null) return;
 
-  const points = [...cornerPointers.values()];
-  const corners = points.map((point) => cornerAt(point.x, point.y));
-  if (!corners[0] || corners[0] !== corners[1]) {
-    window.clearTimeout(cornerTimer);
-    cornerTimer = null;
-    armedCorner = null;
-    return;
-  }
-
-  if (armedCorner === corners[0] && cornerTimer !== null) return;
-
-  window.clearTimeout(cornerTimer);
-  armedCorner = corners[0];
-  cornerTimer = window.setTimeout(() => {
-    cornerTimer = null;
-    if (cornerPointers.size !== 2 || !armedCorner) {
-      armedCorner = null;
-      return;
-    }
-    const current = [...cornerPointers.values()].map((point) => cornerAt(point.x, point.y));
-    if (current.length === 2 && current[0] === armedCorner && current[1] === armedCorner) {
-      armedCorner = null;
-      openMenu();
-    } else {
-      armedCorner = null;
-    }
-  }, LONG_PRESS_MS);
+  settingsHoldTimer = window.setTimeout(() => {
+    settingsHoldTimer = null;
+    if (!bothSettingsHeld()) return;
+    clearSettingsGesture();
+    openSettings();
+  }, SETTINGS_HOLD_MS);
 }
 
-function installCompanionExit() {
-  window.addEventListener(
-    'pointerdown',
-    (event) => {
-      markTouch();
-      cornerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      checkCornerPress();
-    },
-    { capture: true, passive: true },
-  );
+function beginSettingsPress(zone, event) {
+  if (!started || overlayOpen()) return;
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  settingsPointers.set(event.pointerId, zone);
+  try {
+    event.currentTarget.setPointerCapture(event.pointerId);
+  } catch {
+    /* ignore */
+  }
+  checkSettingsHold();
+}
 
-  window.addEventListener(
-    'pointermove',
-    (event) => {
-      if (!cornerPointers.has(event.pointerId)) return;
-      cornerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      checkCornerPress();
-    },
-    { capture: true, passive: true },
-  );
+function endSettingsPress(event) {
+  if (!settingsPointers.has(event.pointerId)) return;
+  settingsPointers.delete(event.pointerId);
+  checkSettingsHold();
+}
 
-  const release = (event) => {
-    if (!cornerPointers.has(event.pointerId)) return;
-    cornerPointers.delete(event.pointerId);
-    checkCornerPress();
-  };
-
-  window.addEventListener('pointerup', release, { capture: true, passive: true });
-  window.addEventListener('pointercancel', release, { capture: true, passive: true });
+function installSettingsGesture() {
+  els.settingsZone1.addEventListener('pointerdown', (event) => beginSettingsPress(0, event));
+  els.settingsZone2.addEventListener('pointerdown', (event) => beginSettingsPress(1, event));
+  window.addEventListener('pointerup', endSettingsPress, { capture: true, passive: true });
+  window.addEventListener('pointercancel', endSettingsPress, { capture: true, passive: true });
 }
 
 function wireUi() {
@@ -1191,38 +1462,69 @@ function wireUi() {
     }
   });
 
-  els.menuResume.addEventListener('click', closeMenu);
-  els.menuRename.addEventListener('click', openRename);
-  els.menuExit.addEventListener('click', exitApp);
-  els.menuReset.addEventListener('click', handleReset);
-  els.menuLanguage.addEventListener('change', () => {
-    state = setStateLanguage(state, els.menuLanguage.value);
-    persist();
-    applyLanguage();
-  });
-  els.menuGender.addEventListener('change', () => {
-    state = setStateGender(state, els.menuGender.value);
-    persist();
-    applyLanguage();
-  });
+  els.settingsResume.addEventListener('click', closeSettings);
+  els.settingsExit.addEventListener('click', exitApp);
+  els.settingsReset.addEventListener('click', handleReset);
 
-  els.renameSave.addEventListener('click', saveRename);
-  els.renameCancel.addEventListener('click', () => closeRename(true));
-  els.renameInput.addEventListener('keydown', (event) => {
+  els.settingMute.addEventListener('change', () => {
+    state = setStateSpeechMuted(state, els.settingMute.checked);
+    persist();
+    if (state.speechMuted) speech.stop();
+  });
+  els.settingGame.addEventListener('change', () => {
+    state = setStateSelectedGame(state, els.settingGame.value);
+    persist();
+    renderLevelChooser();
+    syncSettingsFields();
+  });
+  els.settingLevel.addEventListener('change', () => {
+    const type = currentSettingsGameType();
+    const value = els.settingLevel.value === '' ? null : Number(els.settingLevel.value);
+    state = setStateFixedLevel(state, type, value);
+    persist();
+    syncSettingsFields();
+  });
+  els.settingLanguage.addEventListener('change', () => {
+    state = setStateLanguage(state, els.settingLanguage.value);
+    persist();
+    applyLanguage();
+  });
+  els.settingGender.addEventListener('change', () => {
+    state = setStateGender(state, els.settingGender.value);
+    persist();
+    applyLanguage();
+  });
+  els.settingName.addEventListener('change', saveSettingsName);
+  els.settingName.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      saveRename();
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      closeRename(true);
+      saveSettingsName();
     }
+  });
+  els.settingTextLabels.addEventListener('change', () => {
+    state = setStateShowTextLabels(state, els.settingTextLabels.checked);
+    persist();
+  });
+  els.settingStatusLine.addEventListener('change', () => {
+    state = setStateShowStatusLine(state, els.settingStatusLine.checked);
+    persist();
+    updateStatusLine();
+  });
+  els.settingVoice.addEventListener('change', () => {
+    state = setStateVoiceURI(state, els.settingVoice.value);
+    persist();
+  });
+  els.settingRate.addEventListener('change', () => {
+    state = setStateSpeechRate(state, els.settingRate.value);
+    persist();
   });
 }
 
 function boot() {
   installGlobalGuards();
-  installCompanionExit();
+  installSettingsGesture();
   wireUi();
+  window.setInterval(updateStatusLine, STATUS_UPDATE_MS);
 
   if (speech.available) {
     loadVoices();

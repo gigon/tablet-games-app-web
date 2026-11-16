@@ -6,7 +6,7 @@ import {
   normalizeLanguage,
 } from './i18n.js';
 
-export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count']);
+export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count', 'laundry']);
 
 export const MIN_LEVEL = 1;
 export const MAX_LEVEL = 5;
@@ -16,6 +16,10 @@ export const DOWN_STREAK = 2;
 export const ROUNDS_PER_TYPE = 5;
 export const IDLE_PROMPT_DELAY_MS = 20000;
 export const IDLE_PROMPT_COOLDOWN_MS = 60000;
+
+export const DEFAULT_SPEECH_RATE = 0.88;
+export const MIN_SPEECH_RATE = 0.5;
+export const MAX_SPEECH_RATE = 1.5;
 
 const HISTORY_SIZE = 8;
 
@@ -114,6 +118,13 @@ export const LEVEL_PARAMS = Object.freeze({
     4: Object.freeze({ targets: 5, targetSize: 125, choices: 5 }),
     5: Object.freeze({ targets: 5, targetSize: 110, choices: 6 }),
   }),
+  laundry: Object.freeze({
+    1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
+    2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
+    3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
+    4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
+    5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
+  }),
 });
 
 export const BUILTIN_STARTER_PACK = Object.freeze({
@@ -181,6 +192,22 @@ export const BUILTIN_STARTER_PACK = Object.freeze({
         he: { title: 'כוכבים', prompt: 'כמה כוכבים יש, {name}?' },
       },
     },
+    {
+      id: 'laundry',
+      type: 'laundry',
+      title: 'Laundry',
+      prompt: 'Put the laundry in the machine, {name}.',
+      translations: {
+        en: {
+          title: 'Laundry',
+          prompt: 'Put the laundry in the machine, {name}.',
+        },
+        he: {
+          title: 'כיבוס',
+          prompt: 'שים את הכביסה במכונה, {name}.',
+        },
+      },
+    },
   ],
 });
 
@@ -204,7 +231,48 @@ function normalizeLevels(levels) {
     buttons: clampLevel(source.buttons),
     drag: clampLevel(source.drag),
     count: clampLevel(source.count),
+    laundry: clampLevel(source.laundry),
   };
+}
+
+function normalizeFixedLevel(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return clampLevel(number);
+}
+
+function normalizeFixedLevels(levels) {
+  const source = isPlainObject(levels) ? levels : {};
+  return {
+    buttons: normalizeFixedLevel(source.buttons),
+    drag: normalizeFixedLevel(source.drag),
+    count: normalizeFixedLevel(source.count),
+    laundry: normalizeFixedLevel(source.laundry),
+  };
+}
+
+function normalizeSelectedGame(value) {
+  if (typeof value !== 'string') return null;
+  const id = value.trim().slice(0, 120);
+  return id === '' ? null : id;
+}
+
+function normalizeVoiceURI(value) {
+  if (typeof value !== 'string') return null;
+  const uri = value.trim().slice(0, 300);
+  return uri === '' ? null : uri;
+}
+
+function normalizeSpeechRate(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return DEFAULT_SPEECH_RATE;
+  const clamped = Math.min(MAX_SPEECH_RATE, Math.max(MIN_SPEECH_RATE, number));
+  return Math.round(clamped * 100) / 100;
+}
+
+function normalizeBoolean(value, fallback) {
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 function normalizeThemes(themes) {
@@ -257,11 +325,19 @@ export function createDefaultState(name = '') {
     language: DEFAULT_LANGUAGE,
     gender: DEFAULT_GENDER,
     themes: null,
-    levels: { buttons: MIN_LEVEL, drag: MIN_LEVEL, count: MIN_LEVEL },
+    levels: { buttons: MIN_LEVEL, drag: MIN_LEVEL, count: MIN_LEVEL, laundry: MIN_LEVEL },
+    fixedLevels: { buttons: null, drag: null, count: null, laundry: null },
+    selectedGame: null,
+    speechMuted: false,
+    voiceURI: null,
+    speechRate: DEFAULT_SPEECH_RATE,
+    showTextLabels: false,
+    showStatusLine: true,
     stats: {
       buttons: { successes: 0, failures: 0, recent: [] },
       drag: { successes: 0, failures: 0, recent: [] },
       count: { successes: 0, failures: 0, recent: [] },
+      laundry: { successes: 0, failures: 0, recent: [] },
     },
   };
 }
@@ -275,6 +351,13 @@ export function normalizeState(state) {
     gender: normalizeGender(state.gender),
     themes: normalizeThemes(state.themes),
     levels: normalizeLevels(state.levels),
+    fixedLevels: normalizeFixedLevels(state.fixedLevels),
+    selectedGame: normalizeSelectedGame(state.selectedGame),
+    speechMuted: normalizeBoolean(state.speechMuted, false),
+    voiceURI: normalizeVoiceURI(state.voiceURI),
+    speechRate: normalizeSpeechRate(state.speechRate),
+    showTextLabels: normalizeBoolean(state.showTextLabels, false),
+    showStatusLine: normalizeBoolean(state.showStatusLine, true),
     stats: normalizeStats(state.stats),
   };
 }
@@ -301,6 +384,59 @@ export function setThemes(state, themes) {
   const next = normalizeState(state);
   next.themes = normalizeThemes(themes);
   return next;
+}
+
+export function setSelectedGame(state, gameId) {
+  const next = normalizeState(state);
+  next.selectedGame = normalizeSelectedGame(gameId);
+  return next;
+}
+
+export function setFixedLevel(state, gameType, level) {
+  if (!GAME_TYPES.includes(gameType)) {
+    throw new RangeError(`Unknown game type: ${gameType}`);
+  }
+  const next = normalizeState(state);
+  next.fixedLevels[gameType] = normalizeFixedLevel(level);
+  return next;
+}
+
+export function setSpeechMuted(state, muted) {
+  const next = normalizeState(state);
+  next.speechMuted = muted === true;
+  return next;
+}
+
+export function setVoiceURI(state, voiceURI) {
+  const next = normalizeState(state);
+  next.voiceURI = normalizeVoiceURI(voiceURI);
+  return next;
+}
+
+export function setSpeechRate(state, rate) {
+  const next = normalizeState(state);
+  next.speechRate = normalizeSpeechRate(rate);
+  return next;
+}
+
+export function setShowTextLabels(state, show) {
+  const next = normalizeState(state);
+  next.showTextLabels = show === true;
+  return next;
+}
+
+export function setShowStatusLine(state, show) {
+  const next = normalizeState(state);
+  next.showStatusLine = show === true;
+  return next;
+}
+
+export function effectiveLevel(state, gameType) {
+  if (!GAME_TYPES.includes(gameType)) {
+    throw new RangeError(`Unknown game type: ${gameType}`);
+  }
+  const next = normalizeState(state);
+  return next.fixedLevels[gameType] ?? next.levels[gameType];
 }
 
 export function getLevelParams(gameType, level) {
@@ -470,6 +606,26 @@ export function chooseNextGame(games, currentGame, roundsPlayed = 0) {
   }
 
   return candidates[0];
+}
+
+export function chooseGameForRound(games, state, currentGame, roundsPlayed = 0) {
+  if (!Array.isArray(games) || games.length === 0) return null;
+
+  const selected = normalizeSelectedGame(isPlainObject(state) ? state.selectedGame : null);
+  if (selected) {
+    const fixed = games.find((game) => isPlainObject(game) && game.id === selected);
+    if (fixed) return fixed;
+  }
+
+  return chooseNextGame(games, currentGame, roundsPlayed);
+}
+
+export function minutesPlayed(startedAt, now = Date.now()) {
+  if (startedAt === null || startedAt === undefined) return 0;
+  const start = Number(startedAt);
+  const end = Number(now);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  return Math.max(0, Math.floor((end - start) / 60000));
 }
 
 function validatePrompt(game, at, errors, needsColor) {

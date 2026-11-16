@@ -19,7 +19,10 @@
       <main id="stage" aria-live="polite"></main>
     </div>
 
-    <div id="corner-zone" aria-hidden="true"></div>
+    <div id="status-line" class="status-line hidden" aria-hidden="true"></div>
+
+    <div id="settings-zone-1" class="settings-zone settings-zone-1" aria-hidden="true">Settings 1</div>
+    <div id="settings-zone-2" class="settings-zone settings-zone-2" aria-hidden="true">Settings 2</div>
 
     <div id="welcome" class="overlay">
       <div class="panel">
@@ -36,15 +39,41 @@
           placeholder="Your name"
         >
         <button id="start-button" class="big-button primary" type="button">Start</button>
-        <p id="hint" class="hint">Two fingers, held in a corner for two seconds, open the menu.</p>
+        <p id="hint" class="hint">Keep Settings 1 and Settings 2 pressed together for two seconds.</p>
       </div>
     </div>
 
-    <div id="name-dialog" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="name-dialog-title">
-      <div class="panel">
-        <h1 id="name-dialog-title">Your name</h1>
+    <div id="settings" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="panel settings-panel">
+        <h1 id="settings-title">Settings</h1>
+        <button id="settings-resume" class="big-button primary" type="button">Resume</button>
+
+        <label class="settings-toggle" for="setting-mute">
+          <span id="mute-label" class="field-label">Mute speech</span>
+          <input id="setting-mute" class="toggle-input" type="checkbox">
+        </label>
+
+        <label id="game-label" class="field-label" for="setting-game">Game</label>
+        <select id="setting-game" class="big-select"></select>
+
+        <label id="level-label" class="field-label" for="setting-level">Level</label>
+        <select id="setting-level" class="big-select"></select>
+
+        <label id="language-label" class="field-label" for="setting-language">Language</label>
+        <select id="setting-language" class="big-select">
+          <option value="he">עברית</option>
+          <option value="en">English</option>
+        </select>
+
+        <label id="gender-label" class="field-label" for="setting-gender">Gender</label>
+        <select id="setting-gender" class="big-select">
+          <option value="m">Masculine</option>
+          <option value="f">Feminine</option>
+        </select>
+
+        <label id="name-setting-label" class="field-label" for="setting-name">Name</label>
         <input
-          id="rename-input"
+          id="setting-name"
           class="big-input"
           type="text"
           autocomplete="off"
@@ -53,32 +82,34 @@
           maxlength="40"
           placeholder="Your name"
         >
-        <button id="rename-save" class="big-button primary" type="button">Save</button>
-        <button id="rename-cancel" class="big-button" type="button">Cancel</button>
-      </div>
-    </div>
 
-    <div id="menu" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="menu-title">
-      <div class="panel menu-panel">
-        <h1 id="menu-title">Menu</h1>
-        <button id="menu-resume" class="big-button primary" type="button">Resume</button>
-        <button id="menu-rename" class="big-button" type="button">Change name</button>
-        <label id="language-label" class="field-label" for="menu-language">Language</label>
-        <select id="menu-language" class="big-select">
-          <option value="he">עברית</option>
-          <option value="en">English</option>
-        </select>
-        <label id="gender-label" class="field-label" for="menu-gender">Gender</label>
-        <select id="menu-gender" class="big-select">
-          <option value="m">Masculine</option>
-          <option value="f">Feminine</option>
-        </select>
         <fieldset class="theme-fieldset">
           <legend id="themes-label" class="field-label">Themes</legend>
-          <div id="menu-themes" class="theme-list"></div>
+          <div id="settings-themes" class="theme-list"></div>
         </fieldset>
-        <button id="menu-exit" class="big-button" type="button">Exit</button>
-        <button id="menu-reset" class="big-button warning" type="button">Reset</button>
+
+        <label class="settings-toggle" for="setting-text-labels">
+          <span id="text-labels-label" class="field-label">Show text labels</span>
+          <input id="setting-text-labels" class="toggle-input" type="checkbox">
+        </label>
+
+        <label class="settings-toggle" for="setting-status-line">
+          <span id="status-line-label" class="field-label">Show status line</span>
+          <input id="setting-status-line" class="toggle-input" type="checkbox">
+        </label>
+
+        <label id="voice-label" class="field-label" for="setting-voice">Voice</label>
+        <select id="setting-voice" class="big-select"></select>
+
+        <label id="rate-label" class="field-label" for="setting-rate">Speech rate</label>
+        <select id="setting-rate" class="big-select">
+          <option value="0.7">Slow</option>
+          <option value="0.88">Normal</option>
+          <option value="1.15">Fast</option>
+        </select>
+
+        <button id="settings-exit" class="big-button" type="button">Exit</button>
+        <button id="settings-reset" class="big-button warning" type="button">Reset</button>
       </div>
     </div>
 
