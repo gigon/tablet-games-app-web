@@ -14,6 +14,7 @@ import {
   minutesPlayed,
   noteTouch,
   packsToGames,
+  packsToSongs,
   packsToThemes,
   recordResult,
   resolveThemes,
@@ -57,6 +58,15 @@ import {
   saveLaundryState,
 } from './laundry-logic.js';
 import { renderLaundry } from './laundry.js';
+import {
+  SONGS as BUILTIN_SONGS,
+  createDefaultMusicState,
+  loadMusicState,
+  recordMotorResult as recordMusicMotorResult,
+  recordRuleResult as recordMusicRuleResult,
+  saveMusicState,
+} from './music-logic.js';
+import { renderMusic } from './music.js';
 import {
   MIN_TOUCH_DURATION_MS,
   SAFE_MARGIN,
@@ -117,6 +127,9 @@ const els = {
 let state = loadState(window.localStorage);
 let laundryState = loadLaundryState(window.localStorage);
 let laundryCleanup = null;
+let musicState = loadMusicState(window.localStorage);
+let musicCleanup = null;
+let musicSongs = [...BUILTIN_SONGS];
 let games = [];
 let allThemes = [];
 let packsReady = null;
@@ -335,6 +348,7 @@ function gameTypeLabel(type) {
     drag: 'typeDrag',
     count: 'typeCount',
     laundry: 'typeLaundry',
+    music: 'typeMusic',
   };
   return text(keys[type] || 'typeButtons');
 }
@@ -629,8 +643,17 @@ async function loadPacks() {
 function refreshGames(packs) {
   games = packsToGames(packs);
   allThemes = packsToThemes(packs);
+  const packSongs = packsToSongs(packs);
+  const seenSongs = new Set();
+  musicSongs = [];
+  for (const song of [...BUILTIN_SONGS, ...packSongs]) {
+    if (seenSongs.has(song.id)) continue;
+    seenSongs.add(song.id);
+    musicSongs.push(song);
+  }
   if (!games.length) games = packsToGames([BUILTIN_STARTER_PACK]);
   if (!allThemes.length) allThemes = packsToThemes([BUILTIN_STARTER_PACK]);
+  if (!musicSongs.length) musicSongs = [...BUILTIN_SONGS];
   renderThemeChooser();
   renderGameChooser();
   renderLevelChooser();
@@ -652,6 +675,10 @@ function clearRoundTimers() {
   if (laundryCleanup) {
     laundryCleanup();
     laundryCleanup = null;
+  }
+  if (musicCleanup) {
+    musicCleanup();
+    musicCleanup = null;
   }
 }
 
@@ -691,6 +718,17 @@ function createRound(game, params) {
   if (game.type === 'laundry') {
     return {
       type: 'laundry',
+      promptText: '',
+      silentPrompt: true,
+      startedAt: performance.now(),
+      done: false,
+    };
+  }
+
+  if (game.type === 'music') {
+    return {
+      type: 'music',
+      song: pick(musicSongs.length ? musicSongs : [...BUILTIN_SONGS]),
       promptText: '',
       silentPrompt: true,
       startedAt: performance.now(),
@@ -812,7 +850,7 @@ function setChoiceColumns(choices, count) {
 
 function renderRound(game, params, round) {
   els.stage.replaceChildren();
-  if (state.showTextLabels && game.type !== 'laundry') {
+  if (state.showTextLabels && game.type !== 'laundry' && game.type !== 'music') {
     els.stage.append(promptElement(round.promptText));
   }
   els.stage.dataset.game = game.type;
@@ -820,6 +858,7 @@ function renderRound(game, params, round) {
   if (game.type === 'buttons') renderButtons(game, params, round);
   else if (game.type === 'count') renderCount(params, round);
   else if (game.type === 'laundry') renderLaundryRound(round);
+  else if (game.type === 'music') renderMusicRound(round);
   else renderDrag(params, round);
 }
 
@@ -910,6 +949,79 @@ function renderLaundryRound(round) {
     },
     onSuccess: (info) => handleLaundryOutcome(true, info, round),
     onFailure: (info) => handleLaundryOutcome(false, info, round),
+  });
+}
+
+function musicLevels() {
+  const fixed = state.fixedLevels.music;
+  const motorLevel =
+    fixed === null || fixed === undefined
+      ? musicState.motor.level
+      : Math.min(4, Math.max(1, Math.round(Number(fixed) || 1)));
+  const ruleLevel = Math.min(2, Math.max(1, musicState.rule.level));
+  return { motorLevel, ruleLevel };
+}
+
+function handleMusicOutcome(success, info = {}, round) {
+  if (!started || !currentGame || currentGame.type !== 'music' || overlayOpen()) return;
+
+  const reactionMs = Math.max(0, performance.now() - (round?.startedAt || performance.now()));
+  state = recordResult(state, 'music', { success, reactionMs });
+
+  const reason = info.reason;
+  if (reason === 'rule') {
+    musicState = recordMusicMotorResult(musicState, { success: true });
+    musicState = recordMusicRuleResult(musicState, { success: false });
+  } else if (reason === 'motor') {
+    musicState = recordMusicMotorResult(musicState, { success: false });
+  } else {
+    musicState = recordMusicMotorResult(musicState, { success: true });
+    musicState = recordMusicRuleResult(musicState, { success: true });
+  }
+  saveMusicState(window.localStorage, musicState);
+
+  persist();
+  updateHud();
+  updateStatusLine();
+
+  if (success) {
+    playSuccessTone();
+    speech.speak(text(pick(PRAISE_KEYS)));
+    retryTimer = window.setTimeout(() => {
+      if (currentRound !== round || currentGame?.type !== 'music' || overlayOpen()) {
+        return;
+      }
+      startRound();
+    }, 1600);
+  } else {
+    speech.speak(text('tryAgain', { name: displayName() }));
+  }
+
+  idleState = createIdleState(performance.now());
+  scheduleIdlePrompt();
+}
+
+function renderMusicRound(round) {
+  const levels = musicLevels();
+  musicCleanup = renderMusic(els.stage, {
+    motorLevel: levels.motorLevel,
+    ruleLevel: levels.ruleLevel,
+    song: round.song,
+    language: language(),
+    name: displayName(),
+    showTextLabels: state.showTextLabels,
+    getAudioContext: () => {
+      unlockedAudio();
+      return audioContext;
+    },
+    onPrompt: (promptText) => {
+      round.promptText = promptText;
+      idleState = createIdleState(performance.now());
+      scheduleIdlePrompt();
+      speech.speak(promptText);
+    },
+    onSuccess: (info) => handleMusicOutcome(true, info, round),
+    onFailure: (info) => handleMusicOutcome(false, info, round),
   });
 }
 
@@ -1273,6 +1385,8 @@ function handleReset() {
   state = createDefaultState();
   laundryState = createDefaultLaundryState();
   saveLaundryState(window.localStorage, laundryState);
+  musicState = createDefaultMusicState();
+  saveMusicState(window.localStorage, musicState);
   started = false;
   currentGame = null;
   currentRound = null;

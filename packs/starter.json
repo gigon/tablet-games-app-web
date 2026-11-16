@@ -5,112 +5,226 @@
   "themes": [
     {
       "id": "animals",
-      "names": { "he": "בעלי חיים", "en": "Animals" },
+      "names": {
+        "he": "בעלי חיים",
+        "en": "Animals"
+      },
       "items": [
-        { "id": "cat", "emoji": "🐱", "names": { "he": "חתול", "en": "cat" } },
-        { "id": "dog", "emoji": "🐶", "names": { "he": "כלב", "en": "dog" } },
-        { "id": "rabbit", "emoji": "🐰", "names": { "he": "ארנב", "en": "rabbit" } },
-        { "id": "fish", "emoji": "🐟", "names": { "he": "דג", "en": "fish" } },
-        { "id": "bird", "emoji": "🐦", "names": { "he": "ציפור", "en": "bird" } },
-        { "id": "elephant", "emoji": "🐘", "names": { "he": "פיל", "en": "elephant" } }
+        {
+          "id": "cat",
+          "emoji": "🐱",
+          "names": {
+            "he": "חתול",
+            "en": "cat"
+          }
+        },
+        {
+          "id": "dog",
+          "emoji": "🐶",
+          "names": {
+            "he": "כלב",
+            "en": "dog"
+          }
+        },
+        {
+          "id": "rabbit",
+          "emoji": "🐰",
+          "names": {
+            "he": "ארנב",
+            "en": "rabbit"
+          }
+        },
+        {
+          "id": "fish",
+          "emoji": "🐟",
+          "names": {
+            "he": "דג",
+            "en": "fish"
+          }
+        },
+        {
+          "id": "bird",
+          "emoji": "🐦",
+          "names": {
+            "he": "ציפור",
+            "en": "bird"
+          }
+        },
+        {
+          "id": "elephant",
+          "emoji": "🐘",
+          "names": {
+            "he": "פיל",
+            "en": "elephant"
+          }
+        }
       ]
     },
     {
       "id": "instruments",
-      "names": { "he": "כלי נגינה", "en": "Instruments" },
+      "names": {
+        "he": "כלי נגינה",
+        "en": "Instruments"
+      },
       "items": [
-        { "id": "violin", "emoji": "🎻", "names": { "he": "כינור", "en": "violin" } },
-        { "id": "piano", "emoji": "🎹", "names": { "he": "פסנתר", "en": "piano" } },
-        { "id": "guitar", "emoji": "🎸", "names": { "he": "גיטרה", "en": "guitar" } },
-        { "id": "drum", "emoji": "🥁", "names": { "he": "תוף", "en": "drum" } },
-        { "id": "trumpet", "emoji": "🎺", "names": { "he": "חצוצרה", "en": "trumpet" } }
+        {
+          "id": "violin",
+          "emoji": "🎻",
+          "names": {
+            "he": "כינור",
+            "en": "violin"
+          }
+        },
+        {
+          "id": "piano",
+          "emoji": "🎹",
+          "names": {
+            "he": "פסנתר",
+            "en": "piano"
+          }
+        },
+        {
+          "id": "guitar",
+          "emoji": "🎸",
+          "names": {
+            "he": "גיטרה",
+            "en": "guitar"
+          }
+        },
+        {
+          "id": "drum",
+          "emoji": "🥁",
+          "names": {
+            "he": "תוף",
+            "en": "drum"
+          }
+        },
+        {
+          "id": "trumpet",
+          "emoji": "🎺",
+          "names": {
+            "he": "חצוצרה",
+            "en": "trumpet"
+          }
+        }
       ]
     },
     {
       "id": "fruit",
-      "names": { "he": "פירות", "en": "Fruit" },
+      "names": {
+        "he": "פירות",
+        "en": "Fruit"
+      },
       "items": [
-        { "id": "apple", "emoji": "🍎", "names": { "he": "תפוח", "en": "apple" } },
-        { "id": "banana", "emoji": "🍌", "names": { "he": "בננה", "en": "banana" } },
-        { "id": "grapes", "emoji": "🍇", "names": { "he": "ענבים", "en": "grapes" } },
-        { "id": "orange", "emoji": "🍊", "names": { "he": "תפוז", "en": "orange" } },
-        { "id": "strawberry", "emoji": "🍓", "names": { "he": "תות", "en": "strawberry" } },
-        { "id": "watermelon", "emoji": "🍉", "names": { "he": "אבטיח", "en": "watermelon" } }
+        {
+          "id": "apple",
+          "emoji": "🍎",
+          "names": {
+            "he": "תפוח",
+            "en": "apple"
+          }
+        },
+        {
+          "id": "banana",
+          "emoji": "🍌",
+          "names": {
+            "he": "בננה",
+            "en": "banana"
+          }
+        },
+        {
+          "id": "grapes",
+          "emoji": "🍇",
+          "names": {
+            "he": "ענבים",
+            "en": "grapes"
+          }
+        },
+        {
+          "id": "orange",
+          "emoji": "🍊",
+          "names": {
+            "he": "תפוז",
+            "en": "orange"
+          }
+        },
+        {
+          "id": "strawberry",
+          "emoji": "🍓",
+          "names": {
+            "he": "תות",
+            "en": "strawberry"
+          }
+        },
+        {
+          "id": "watermelon",
+          "emoji": "🍉",
+          "names": {
+            "he": "אבטיח",
+            "en": "watermelon"
+          }
+        }
       ]
     },
     {
       "id": "vehicles",
-      "names": { "he": "כלי רכב", "en": "Vehicles" },
+      "names": {
+        "he": "כלי רכב",
+        "en": "Vehicles"
+      },
       "items": [
-        { "id": "car", "emoji": "🚗", "names": { "he": "מכונית", "en": "car" } },
-        { "id": "bus", "emoji": "🚌", "names": { "he": "אוטובוס", "en": "bus" } },
-        { "id": "bicycle", "emoji": "🚲", "names": { "he": "אופניים", "en": "bicycle" } },
-        { "id": "train", "emoji": "🚂", "names": { "he": "רכבת", "en": "train" } },
-        { "id": "airplane", "emoji": "✈️", "names": { "he": "מטוס", "en": "airplane" } },
-        { "id": "boat", "emoji": "⛵", "names": { "he": "סירה", "en": "boat" } }
+        {
+          "id": "car",
+          "emoji": "🚗",
+          "names": {
+            "he": "מכונית",
+            "en": "car"
+          }
+        },
+        {
+          "id": "bus",
+          "emoji": "🚌",
+          "names": {
+            "he": "אוטובוס",
+            "en": "bus"
+          }
+        },
+        {
+          "id": "bicycle",
+          "emoji": "🚲",
+          "names": {
+            "he": "אופניים",
+            "en": "bicycle"
+          }
+        },
+        {
+          "id": "train",
+          "emoji": "🚂",
+          "names": {
+            "he": "רכבת",
+            "en": "train"
+          }
+        },
+        {
+          "id": "airplane",
+          "emoji": "✈️",
+          "names": {
+            "he": "מטוס",
+            "en": "airplane"
+          }
+        },
+        {
+          "id": "boat",
+          "emoji": "⛵",
+          "names": {
+            "he": "סירה",
+            "en": "boat"
+          }
+        }
       ]
     }
   ],
   "games": [
-    {
-      "id": "colors",
-      "type": "buttons",
-      "title": "Colour buttons",
-      "prompt": "Push the {color} button, {name}.",
-      "colors": ["red", "blue", "yellow", "green", "orange", "purple"],
-      "translations": {
-        "en": {
-          "title": "Colour buttons",
-          "prompt": "{press} the {color} button, {name}."
-        },
-        "he": {
-          "title": "כפתורי צבעים",
-          "prompt": "{press} על הכפתור ה{color}, {name}.",
-          "colors": {
-            "red": "אדום",
-            "blue": "כחול",
-            "yellow": "צהוב",
-            "green": "ירוק",
-            "orange": "כתום",
-            "purple": "סגול",
-            "pink": "ורוד"
-          }
-        }
-      }
-    },
-    {
-      "id": "coins",
-      "type": "drag",
-      "title": "Move the coins",
-      "prompt": "Move the coins into the basket, {name}.",
-      "item": "🪙",
-      "translations": {
-        "en": { "title": "Move the coins", "prompt": "{move} the coins into the basket, {name}." },
-        "he": { "title": "מטבעות", "prompt": "{move} את המטבעות לסל, {name}." }
-      }
-    },
-    {
-      "id": "apples",
-      "type": "count",
-      "title": "Count the apples",
-      "prompt": "How many apples do you see, {name}?",
-      "objects": ["🍎"],
-      "translations": {
-        "en": { "title": "Count the apples", "prompt": "How many apples do you see, {name}?" },
-        "he": { "title": "תפוחים", "prompt": "כמה תפוחים יש, {name}?" }
-      }
-    },
-    {
-      "id": "stars",
-      "type": "count",
-      "title": "Count the stars",
-      "prompt": "How many stars do you see, {name}?",
-      "objects": ["⭐"],
-      "translations": {
-        "en": { "title": "Count the stars", "prompt": "How many stars do you see, {name}?" },
-        "he": { "title": "כוכבים", "prompt": "כמה כוכבים יש, {name}?" }
-      }
-    },
     {
       "id": "laundry",
       "type": "laundry",
@@ -124,6 +238,22 @@
         "he": {
           "title": "כיבוס",
           "prompt": "שים את הכביסה במכונה, {name}."
+        }
+      }
+    },
+    {
+      "id": "music",
+      "type": "music",
+      "title": "Play along",
+      "prompt": "Let's play a tune, {name}.",
+      "translations": {
+        "en": {
+          "title": "Play along",
+          "prompt": "Let's play a tune, {name}."
+        },
+        "he": {
+          "title": "נגן",
+          "prompt": "בוא ננגן, {name}."
         }
       }
     }

@@ -748,3 +748,184 @@ body.settings-open {
     animation: none !important;
   }
 }
+
+.music-prompt {
+  max-width: 24ch;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(30px, 4.2vw, 54px);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+}
+
+.music-board {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(10px, 2vh, 24px);
+  width: 100%;
+  max-width: 1500px;
+  min-height: 0;
+  touch-action: none;
+}
+
+.music-dots {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2vw, 22px);
+  min-height: 24px;
+}
+
+.music-dot {
+  width: clamp(14px, 2vw, 24px);
+  height: clamp(14px, 2vw, 24px);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3);
+  transition: background 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.music-dot.is-done {
+  background: var(--accent);
+  box-shadow:
+    0 0 0 3px rgba(255, 212, 59, 0.28),
+    0 0 18px rgba(255, 212, 59, 0.6);
+  transform: scale(1.08);
+}
+
+.music-pads {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(10px, 2vh, 26px);
+  width: 100%;
+  min-height: 0;
+  touch-action: none;
+}
+
+.music-pads[data-count="1"] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.music-pads[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.music-pads[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.music-pads[data-count="4"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.music-pad {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: clamp(24px, 5vh, 52px);
+  background-color: var(--music-pad, #c40000);
+  background-image: radial-gradient(
+    circle at 34% 28%,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0) 58%
+  );
+  box-shadow:
+    inset 0 -10px 24px rgba(0, 0, 0, 0.22),
+    0 12px 22px rgba(0, 0, 0, 0.32);
+  touch-action: none;
+  transition: box-shadow 180ms ease, filter 180ms ease;
+}
+
+.music-pad.is-target {
+  animation: music-glow 1.15s ease-in-out infinite;
+}
+
+.music-pad.is-rippling {
+  animation: music-ripple 460ms ease-out;
+}
+
+.music-pad.is-pulse {
+  animation: music-pulse 520ms ease;
+}
+
+@keyframes music-glow {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 -10px 24px rgba(0, 0, 0, 0.22),
+      0 12px 22px rgba(0, 0, 0, 0.32),
+      0 0 0 6px rgba(255, 255, 255, 0.72),
+      0 0 34px 10px rgba(255, 255, 255, 0.34);
+  }
+  50% {
+    box-shadow:
+      inset 0 -10px 24px rgba(0, 0, 0, 0.22),
+      0 12px 22px rgba(0, 0, 0, 0.32),
+      0 0 0 10px rgba(255, 255, 255, 0.95),
+      0 0 54px 20px rgba(255, 255, 255, 0.62);
+  }
+}
+
+@keyframes music-ripple {
+  0% {
+    box-shadow:
+      inset 0 -10px 24px rgba(0, 0, 0, 0.22),
+      0 12px 22px rgba(0, 0, 0, 0.32),
+      0 0 0 0 rgba(255, 255, 255, 0.85);
+    filter: brightness(1.28);
+  }
+  100% {
+    box-shadow:
+      inset 0 -10px 24px rgba(0, 0, 0, 0.22),
+      0 12px 22px rgba(0, 0, 0, 0.32),
+      0 0 0 34px rgba(255, 255, 255, 0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes music-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  40% {
+    filter: brightness(1.45);
+  }
+}
+
+@media (orientation: portrait) {
+  .music-pads[data-count="2"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .music-pads[data-count="3"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-pad.is-target,
+  .music-pad.is-rippling,
+  .music-pad.is-pulse {
+    animation: none !important;
+  }
+
+  .music-dot {
+    transition: none !important;
+  }
+}

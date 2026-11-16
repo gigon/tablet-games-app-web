@@ -5,8 +5,9 @@ import {
   normalizeGender,
   normalizeLanguage,
 } from './i18n.js';
+import { validateSong } from './music-logic.js';
 
-export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count', 'laundry']);
+export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count', 'laundry', 'music']);
 
 export const MIN_LEVEL = 1;
 export const MAX_LEVEL = 5;
@@ -125,6 +126,13 @@ export const LEVEL_PARAMS = Object.freeze({
     4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
     5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
   }),
+  music: Object.freeze({
+    1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
+    2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
+    3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
+    4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
+    5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
+  }),
 });
 
 export const BUILTIN_STARTER_PACK = Object.freeze({
@@ -133,65 +141,6 @@ export const BUILTIN_STARTER_PACK = Object.freeze({
   name: 'Starter',
   themes: STARTER_THEMES,
   games: [
-    {
-      id: 'colors',
-      type: 'buttons',
-      title: 'Colour buttons',
-      prompt: 'Push the {color} button, {name}.',
-      colors: ['red', 'blue', 'yellow', 'green', 'orange', 'purple'],
-      translations: {
-        en: {
-          title: 'Colour buttons',
-          prompt: '{press} the {color} button, {name}.',
-        },
-        he: {
-          title: 'כפתורי צבעים',
-          prompt: '{press} על הכפתור ה{color}, {name}.',
-          colors: {
-            red: 'אדום',
-            blue: 'כחול',
-            yellow: 'צהוב',
-            green: 'ירוק',
-            orange: 'כתום',
-            purple: 'סגול',
-            pink: 'ורוד',
-          },
-        },
-      },
-    },
-    {
-      id: 'coins',
-      type: 'drag',
-      title: 'Move the coins',
-      prompt: 'Move the coins into the basket, {name}.',
-      item: '🪙',
-      translations: {
-        en: { title: 'Move the coins', prompt: '{move} the coins into the basket, {name}.' },
-        he: { title: 'מטבעות', prompt: '{move} את המטבעות לסל, {name}.' },
-      },
-    },
-    {
-      id: 'apples',
-      type: 'count',
-      title: 'Count the apples',
-      prompt: 'How many apples do you see, {name}?',
-      objects: ['🍎'],
-      translations: {
-        en: { title: 'Count the apples', prompt: 'How many apples do you see, {name}?' },
-        he: { title: 'תפוחים', prompt: 'כמה תפוחים יש, {name}?' },
-      },
-    },
-    {
-      id: 'stars',
-      type: 'count',
-      title: 'Count the stars',
-      prompt: 'How many stars do you see, {name}?',
-      objects: ['⭐'],
-      translations: {
-        en: { title: 'Count the stars', prompt: 'How many stars do you see, {name}?' },
-        he: { title: 'כוכבים', prompt: 'כמה כוכבים יש, {name}?' },
-      },
-    },
     {
       id: 'laundry',
       type: 'laundry',
@@ -205,6 +154,22 @@ export const BUILTIN_STARTER_PACK = Object.freeze({
         he: {
           title: 'כיבוס',
           prompt: 'שים את הכביסה במכונה, {name}.',
+        },
+      },
+    },
+    {
+      id: 'music',
+      type: 'music',
+      title: 'Play along',
+      prompt: "Let's play a tune, {name}.",
+      translations: {
+        en: {
+          title: 'Play along',
+          prompt: "Let's play a tune, {name}.",
+        },
+        he: {
+          title: 'נגן',
+          prompt: 'בוא ננגן, {name}.',
         },
       },
     },
@@ -232,6 +197,7 @@ function normalizeLevels(levels) {
     drag: clampLevel(source.drag),
     count: clampLevel(source.count),
     laundry: clampLevel(source.laundry),
+    music: clampLevel(source.music),
   };
 }
 
@@ -249,6 +215,7 @@ function normalizeFixedLevels(levels) {
     drag: normalizeFixedLevel(source.drag),
     count: normalizeFixedLevel(source.count),
     laundry: normalizeFixedLevel(source.laundry),
+    music: normalizeFixedLevel(source.music),
   };
 }
 
@@ -325,8 +292,14 @@ export function createDefaultState(name = '') {
     language: DEFAULT_LANGUAGE,
     gender: DEFAULT_GENDER,
     themes: null,
-    levels: { buttons: MIN_LEVEL, drag: MIN_LEVEL, count: MIN_LEVEL, laundry: MIN_LEVEL },
-    fixedLevels: { buttons: null, drag: null, count: null, laundry: null },
+    levels: {
+      buttons: MIN_LEVEL,
+      drag: MIN_LEVEL,
+      count: MIN_LEVEL,
+      laundry: MIN_LEVEL,
+      music: MIN_LEVEL,
+    },
+    fixedLevels: { buttons: null, drag: null, count: null, laundry: null, music: null },
     selectedGame: null,
     speechMuted: false,
     voiceURI: null,
@@ -338,6 +311,7 @@ export function createDefaultState(name = '') {
       drag: { successes: 0, failures: 0, recent: [] },
       count: { successes: 0, failures: 0, recent: [] },
       laundry: { successes: 0, failures: 0, recent: [] },
+      music: { successes: 0, failures: 0, recent: [] },
     },
   };
 }
@@ -779,16 +753,15 @@ export function validatePack(pack) {
       errors.push(`${at} must be an object`);
       return;
     }
+    if (!GAME_TYPES.includes(game.type)) {
+      return;
+    }
     if (typeof game.id !== 'string' || game.id.trim() === '') {
       errors.push(`${at}.id must be a non-empty string`);
     } else if (seenIds.has(game.id)) {
       errors.push(`${at}.id "${game.id}" is duplicated`);
     } else {
       seenIds.add(game.id);
-    }
-    if (!GAME_TYPES.includes(game.type)) {
-      errors.push(`${at}.type must be one of ${GAME_TYPES.join(', ')}`);
-      return;
     }
     if (game.title !== undefined && (typeof game.title !== 'string' || game.title.trim() === '')) {
       errors.push(`${at}.title must be a non-empty string when present`);
@@ -855,6 +828,7 @@ export function packsToGames(packs) {
     const result = validatePack(pack);
     if (!result.valid) continue;
     for (const game of result.pack.games) {
+      if (!GAME_TYPES.includes(game.type)) continue;
       games.push({ ...clone(game), packId: result.pack.id });
     }
   }
@@ -872,6 +846,22 @@ export function packsToThemes(packs) {
     }
   }
   return themes;
+}
+
+export function packsToSongs(packs) {
+  const songs = [];
+  if (!Array.isArray(packs)) return songs;
+  const seenIds = new Set();
+  for (const pack of packs) {
+    if (!isPlainObject(pack) || !Array.isArray(pack.songs)) continue;
+    for (const song of pack.songs) {
+      if (!validateSong(song)) continue;
+      if (seenIds.has(song.id)) continue;
+      seenIds.add(song.id);
+      songs.push({ ...clone(song), packId: pack.id });
+    }
+  }
+  return songs;
 }
 
 export function resolveThemes(themes, selected) {
