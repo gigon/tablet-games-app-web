@@ -510,6 +510,116 @@ body.settings-open {
   touch-action: pan-y;
 }
 
+.recordings-panel {
+  width: min(1040px, 96vw);
+}
+
+.recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 62vh;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.recording-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 3px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: start;
+}
+
+.recording-row.is-recording {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
+}
+
+.recording-phrase {
+  font-size: clamp(24px, 2.6vw, 32px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.recording-status {
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+.recording-status.is-recorded {
+  color: #8cf29a;
+  opacity: 1;
+}
+
+.recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.recording-button {
+  min-width: 104px;
+  min-height: 58px;
+  padding: 8px 18px;
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  background: #1c4b70;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.recording-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.recording-button:focus-visible {
+  outline: 5px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.recording-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.recording-error {
+  margin: 0;
+  color: #ffb020;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.recording-error.hidden {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .recording-row {
+    grid-template-columns: 1fr;
+  }
+
+  .recording-actions {
+    justify-content: flex-start;
+  }
+}
+
 .settings-toggle {
   display: flex;
   align-items: center;

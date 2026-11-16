@@ -68,6 +68,12 @@ import {
 } from './music-logic.js';
 import { renderMusic } from './music.js';
 import {
+  PHRASES,
+  createIndexedDbBackend,
+  createRecordingStore,
+  phraseIdForText,
+} from './phrases.js';
+import {
   MIN_TOUCH_DURATION_MS,
   SAFE_MARGIN,
   isSingleTouch,
@@ -81,6 +87,13 @@ const STATUS_UPDATE_MS = 15000;
 const PACK_FETCH_TIMEOUT_MS = 5000;
 const DROP_TOLERANCE_PX = 64;
 const SNAP_BACK_MS = 260;
+const RECORDING_MAX_MS = 8000;
+const RECORDING_MIME_TYPES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/ogg;codecs=opus',
+  'audio/mp4',
+];
 
 const els = {
   stage: document.getElementById('stage'),
@@ -96,6 +109,7 @@ const els = {
   settings: document.getElementById('settings'),
   settingsTitle: document.getElementById('settings-title'),
   settingsResume: document.getElementById('settings-resume'),
+  settingsRecord: document.getElementById('settings-record'),
   settingMute: document.getElementById('setting-mute'),
   muteLabel: document.getElementById('mute-label'),
   gameLabel: document.getElementById('game-label'),
@@ -120,6 +134,11 @@ const els = {
   settingRate: document.getElementById('setting-rate'),
   settingsExit: document.getElementById('settings-exit'),
   settingsReset: document.getElementById('settings-reset'),
+  recordings: document.getElementById('recordings'),
+  recordingsTitle: document.getElementById('recordings-title'),
+  recordingsError: document.getElementById('recordings-error'),
+  recordingsList: document.getElementById('recordings-list'),
+  recordingsClose: document.getElementById('recordings-close'),
   settingsZone1: document.getElementById('settings-zone-1'),
   settingsZone2: document.getElementById('settings-zone-2'),
 };
@@ -148,6 +167,13 @@ let activePointers = new Set();
 let multiTouchGesture = false;
 let settingsPointers = new Map();
 let settingsHoldTimer = null;
+let recordingStore = null;
+let recordedIds = new Set();
+let recordingRows = new Map();
+let recordingSession = null;
+let recordingRequestToken = 0;
+let previewAudio = null;
+let previewUrl = null;
 
 function language() {
   return normalizeLanguage(state.language);
@@ -181,12 +207,88 @@ function findVoice(lang) {
   return voices.find((voice) => matches(voice) && voice.localService) || voices.find(matches) || null;
 }
 
+function voiceStore() {
+  if (recordingStore) return recordingStore;
+  try {
+    if (!window.indexedDB) return null;
+    recordingStore = createRecordingStore(createIndexedDbBackend(window.indexedDB));
+  } catch {
+    recordingStore = null;
+  }
+  return recordingStore;
+}
+
 const speech = {
   available:
     typeof window.speechSynthesis !== 'undefined' &&
     typeof window.SpeechSynthesisUtterance !== 'undefined',
-  speak(message, lang = language()) {
-    if (!this.available || !message || state.speechMuted) return;
+  token: 0,
+  recordingAudio: null,
+  recordingUrl: null,
+  cancelRecordingPlayback() {
+    if (this.recordingAudio) {
+      try {
+        this.recordingAudio.pause();
+      } catch {
+        /* ignore */
+      }
+      this.recordingAudio = null;
+    }
+    if (this.recordingUrl) {
+      try {
+        URL.revokeObjectURL(this.recordingUrl);
+      } catch {
+        /* ignore */
+      }
+      this.recordingUrl = null;
+    }
+  },
+  async playRecording(id, token) {
+    const store = voiceStore();
+    if (!store) return false;
+
+    let blob;
+    try {
+      blob = await store.get(id);
+    } catch {
+      return false;
+    }
+    if (!blob || token !== this.token || state.speechMuted) return false;
+
+    let url;
+    try {
+      url = URL.createObjectURL(blob);
+    } catch {
+      return false;
+    }
+
+    const audio = new Audio(url);
+    this.recordingAudio = audio;
+    this.recordingUrl = url;
+    const cleanup = () => {
+      if (this.recordingAudio === audio) this.recordingAudio = null;
+      if (this.recordingUrl === url) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* ignore */
+        }
+        this.recordingUrl = null;
+      }
+    };
+    audio.addEventListener('ended', cleanup, { once: true });
+    audio.addEventListener('error', cleanup, { once: true });
+
+    try {
+      await audio.play();
+    } catch {
+      cleanup();
+      return false;
+    }
+    return true;
+  },
+  speakWithTts(message, lang) {
+    if (!this.available) return;
     try {
       window.speechSynthesis.cancel();
       const utterance = new window.SpeechSynthesisUtterance(String(message));
@@ -201,7 +303,24 @@ const speech = {
       /* Speech is an enhancement, never a requirement. */
     }
   },
+  async speak(message, lang = language()) {
+    if (!message) return;
+    if (state.speechMuted) {
+      this.stop();
+      return;
+    }
+
+    this.cancelRecordingPlayback();
+    const token = (this.token += 1);
+    const id = phraseIdForText(lang, message);
+    if (id && (await this.playRecording(id, token))) return;
+    if (token !== this.token || state.speechMuted) return;
+
+    this.speakWithTts(message, lang);
+  },
   stop() {
+    this.token += 1;
+    this.cancelRecordingPlayback();
     if (!this.available) return;
     try {
       window.speechSynthesis.cancel();
@@ -453,6 +572,358 @@ function syncSettingsFields() {
   els.settingRate.value = String(state.speechRate);
 }
 
+function clearRecordingsError() {
+  if (!els.recordingsError) return;
+  els.recordingsError.textContent = '';
+  els.recordingsError.classList.add('hidden');
+}
+
+function showRecordingsError(message) {
+  if (!els.recordingsError) return;
+  els.recordingsError.textContent = message;
+  els.recordingsError.classList.remove('hidden');
+}
+
+function stopPreviewAudio() {
+  if (previewAudio) {
+    try {
+      previewAudio.pause();
+    } catch {
+      /* ignore */
+    }
+    previewAudio = null;
+  }
+  if (previewUrl) {
+    try {
+      URL.revokeObjectURL(previewUrl);
+    } catch {
+      /* ignore */
+    }
+    previewUrl = null;
+  }
+}
+
+function supportedRecordingMimeType() {
+  if (typeof window.MediaRecorder === 'undefined') return '';
+  if (typeof window.MediaRecorder.isTypeSupported !== 'function') return '';
+  return RECORDING_MIME_TYPES.find((type) => window.MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function syncRecordingRow(id) {
+  const row = recordingRows.get(id);
+  if (!row) return;
+
+  const isRecorded = recordedIds.has(id);
+  const isRecording = recordingSession?.id === id;
+  row.status.textContent = isRecorded
+    ? text('recordingRecorded')
+    : text('recordingNotRecorded');
+  row.status.classList.toggle('is-recorded', isRecorded);
+  row.row.classList.toggle('is-recording', isRecording);
+  row.recordButton.textContent = isRecording ? text('stopRecording') : text('record');
+  row.playButton.disabled = !isRecorded || isRecording;
+  row.deleteButton.disabled = !isRecorded || isRecording;
+}
+
+function renderRecordings() {
+  if (!els.recordingsList) return;
+  const lang = language();
+  recordingRows = new Map();
+  els.recordingsList.replaceChildren();
+
+  for (const phrase of PHRASES) {
+    const phraseText = phrase[lang] || phrase.he;
+    const row = document.createElement('div');
+    row.className = 'recording-row';
+    row.dataset.phrase = phrase.id;
+
+    const label = document.createElement('span');
+    label.className = 'recording-phrase';
+    label.textContent = phraseText;
+
+    const status = document.createElement('span');
+    status.className = 'recording-status';
+
+    const actions = document.createElement('div');
+    actions.className = 'recording-actions';
+
+    const recordButton = document.createElement('button');
+    recordButton.type = 'button';
+    recordButton.className = 'recording-button';
+    recordButton.setAttribute('aria-label', `${text('record')} ${phraseText}`);
+    recordButton.addEventListener('click', () => {
+      if (recordingSession?.id === phrase.id) stopRecording();
+      else startRecording(phrase.id);
+    });
+
+    const playButton = document.createElement('button');
+    playButton.type = 'button';
+    playButton.className = 'recording-button';
+    playButton.textContent = text('playRecording');
+    playButton.setAttribute('aria-label', `${text('playRecording')} ${phraseText}`);
+    playButton.addEventListener('click', () => playRecordedPhrase(phrase.id));
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'recording-button';
+    deleteButton.textContent = text('deleteRecording');
+    deleteButton.setAttribute('aria-label', `${text('deleteRecording')} ${phraseText}`);
+    deleteButton.addEventListener('click', () => deleteRecordedPhrase(phrase.id));
+
+    actions.append(recordButton, playButton, deleteButton);
+    row.append(label, status, actions);
+    els.recordingsList.append(row);
+    recordingRows.set(phrase.id, {
+      row,
+      status,
+      recordButton,
+      playButton,
+      deleteButton,
+    });
+    syncRecordingRow(phrase.id);
+  }
+}
+
+async function refreshRecordings() {
+  const store = voiceStore();
+  if (!store) {
+    showRecordingsError(text('recordingsStorageError'));
+    return;
+  }
+
+  try {
+    recordedIds = new Set(await store.ids());
+  } catch {
+    showRecordingsError(text('recordingsStorageError'));
+    return;
+  }
+
+  for (const id of recordingRows.keys()) syncRecordingRow(id);
+}
+
+function stopRecording(session = recordingSession) {
+  if (!session) return;
+  window.clearTimeout(session.timer);
+  if (session.recorder && session.recorder.state !== 'inactive') {
+    try {
+      session.recorder.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function finishRecording(session) {
+  window.clearTimeout(session.timer);
+  session.stream.getTracks().forEach((track) => track.stop());
+  if (recordingSession === session) recordingSession = null;
+  syncRecordingRow(session.id);
+
+  const type = session.recorder.mimeType || 'audio/webm';
+  const blob = new Blob(session.chunks, { type });
+  if (!blob.size) {
+    showRecordingsError(text('recordingsFailed'));
+    return;
+  }
+
+  const store = voiceStore();
+  if (!store) {
+    showRecordingsError(text('recordingsStorageError'));
+    return;
+  }
+
+  try {
+    await store.save(session.id, blob);
+    recordedIds.add(session.id);
+    syncRecordingRow(session.id);
+  } catch {
+    showRecordingsError(text('recordingsFailed'));
+  }
+}
+
+async function startRecording(id) {
+  clearRecordingsError();
+  stopPreviewAudio();
+  speech.stop();
+
+  if (recordingSession) stopRecording();
+
+  if (
+    typeof window.MediaRecorder === 'undefined' ||
+    !navigator.mediaDevices ||
+    typeof navigator.mediaDevices.getUserMedia !== 'function'
+  ) {
+    showRecordingsError(text('recordingsUnsupported'));
+    return;
+  }
+
+  if (!voiceStore()) {
+    showRecordingsError(text('recordingsStorageError'));
+    return;
+  }
+
+  const requestToken = (recordingRequestToken += 1);
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    if (requestToken === recordingRequestToken) {
+      showRecordingsError(text('recordingsDenied'));
+    }
+    return;
+  }
+
+  if (
+    requestToken !== recordingRequestToken ||
+    els.recordings.classList.contains('hidden')
+  ) {
+    stream.getTracks().forEach((track) => track.stop());
+    return;
+  }
+
+  let recorder;
+  try {
+    const mimeType = supportedRecordingMimeType();
+    recorder = mimeType
+      ? new window.MediaRecorder(stream, { mimeType })
+      : new window.MediaRecorder(stream);
+  } catch {
+    stream.getTracks().forEach((track) => track.stop());
+    showRecordingsError(text('recordingsUnsupported'));
+    return;
+  }
+
+  const session = { id, recorder, stream, chunks: [], timer: null };
+  recordingSession = session;
+
+  recorder.addEventListener('dataavailable', (event) => {
+    if (event.data && event.data.size) session.chunks.push(event.data);
+  });
+  recorder.addEventListener('stop', () => {
+    finishRecording(session);
+  });
+
+  try {
+    recorder.start();
+  } catch {
+    recordingSession = null;
+    stream.getTracks().forEach((track) => track.stop());
+    showRecordingsError(text('recordingsFailed'));
+    return;
+  }
+
+  session.timer = window.setTimeout(() => {
+    if (recordingSession === session) stopRecording(session);
+  }, RECORDING_MAX_MS);
+  syncRecordingRow(id);
+}
+
+async function playRecordedPhrase(id) {
+  clearRecordingsError();
+  stopPreviewAudio();
+  speech.stop();
+
+  const store = voiceStore();
+  if (!store) {
+    showRecordingsError(text('recordingsStorageError'));
+    return;
+  }
+
+  let blob;
+  try {
+    blob = await store.get(id);
+  } catch {
+    showRecordingsError(text('recordingsFailed'));
+    return;
+  }
+
+  if (!blob) {
+    recordedIds.delete(id);
+    syncRecordingRow(id);
+    return;
+  }
+
+  let url;
+  try {
+    url = URL.createObjectURL(blob);
+  } catch {
+    showRecordingsError(text('recordingsFailed'));
+    return;
+  }
+
+  const audio = new Audio(url);
+  previewAudio = audio;
+  previewUrl = url;
+  const cleanup = () => {
+    if (previewAudio === audio) previewAudio = null;
+    if (previewUrl === url) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        /* ignore */
+      }
+      previewUrl = null;
+    }
+  };
+  audio.addEventListener('ended', cleanup, { once: true });
+  audio.addEventListener('error', cleanup, { once: true });
+
+  try {
+    await audio.play();
+  } catch {
+    cleanup();
+    showRecordingsError(text('recordingsFailed'));
+  }
+}
+
+async function deleteRecordedPhrase(id) {
+  clearRecordingsError();
+  stopPreviewAudio();
+  if (recordingSession?.id === id) stopRecording();
+
+  const store = voiceStore();
+  if (!store) {
+    showRecordingsError(text('recordingsStorageError'));
+    return;
+  }
+
+  try {
+    await store.remove(id);
+  } catch {
+    showRecordingsError(text('recordingsFailed'));
+    return;
+  }
+
+  recordedIds.delete(id);
+  syncRecordingRow(id);
+}
+
+function openRecordings() {
+  if (!started || !els.recordings.classList.contains('hidden')) return;
+  speech.stop();
+  stopPreviewAudio();
+  clearRecordingsError();
+  renderRecordings();
+  els.recordings.classList.remove('hidden');
+  els.recordingsClose.focus({ preventScroll: true });
+  refreshRecordings();
+}
+
+function dismissRecordings() {
+  recordingRequestToken += 1;
+  if (recordingSession) stopRecording();
+  stopPreviewAudio();
+  els.recordings.classList.add('hidden');
+  clearRecordingsError();
+}
+
+function closeRecordings() {
+  dismissRecordings();
+  if (!els.settings.classList.contains('hidden')) {
+    els.settingsRecord.focus({ preventScroll: true });
+  }
+}
+
 function applyLanguage() {
   const lang = language();
   document.documentElement.lang = lang;
@@ -469,6 +940,9 @@ function applyLanguage() {
 
   els.settingsTitle.textContent = text('settingsTitle');
   els.settingsResume.textContent = text('resume');
+  els.settingsRecord.textContent = text('recordPhrases');
+  els.recordingsTitle.textContent = text('recordingsTitle');
+  els.recordingsClose.textContent = text('recordingsClose');
   els.muteLabel.textContent = text('muteSpeech');
   els.gameLabel.textContent = text('chooseGame');
   els.languageLabel.textContent = text('language');
@@ -502,6 +976,10 @@ function applyLanguage() {
   syncSettingsFields();
   updateHud();
   updateStatusLine();
+  if (els.recordings && !els.recordings.classList.contains('hidden')) {
+    renderRecordings();
+    refreshRecordings();
+  }
 }
 
 function renderThemeChooser() {
@@ -663,7 +1141,8 @@ function refreshGames(packs) {
 function overlayOpen() {
   return (
     !els.welcome.classList.contains('hidden') ||
-    !els.settings.classList.contains('hidden')
+    !els.settings.classList.contains('hidden') ||
+    !els.recordings.classList.contains('hidden')
   );
 }
 
@@ -1356,6 +1835,7 @@ function openSettings() {
 
 function closeSettings() {
   saveSettingsName();
+  dismissRecordings();
   els.settings.classList.add('hidden');
   setSettingsScrolling(false);
   disarmReset();
@@ -1395,6 +1875,7 @@ function handleReset() {
   gameSessionStartedAt = null;
   clearRoundTimers();
   speech.stop();
+  dismissRecordings();
   els.settings.classList.add('hidden');
   setSettingsScrolling(false);
   els.stage.replaceChildren();
@@ -1429,6 +1910,7 @@ function exitApp() {
   clearRoundTimers();
   speech.stop();
   disarmReset();
+  dismissRecordings();
   els.settings.classList.add('hidden');
   setSettingsScrolling(false);
   els.stage.replaceChildren();
@@ -1577,6 +2059,8 @@ function wireUi() {
   });
 
   els.settingsResume.addEventListener('click', closeSettings);
+  els.settingsRecord.addEventListener('click', openRecordings);
+  els.recordingsClose.addEventListener('click', closeRecordings);
   els.settingsExit.addEventListener('click', exitApp);
   els.settingsReset.addEventListener('click', handleReset);
 

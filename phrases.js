@@ -1,0 +1,143 @@
+export const PHRASES = Object.freeze([
+  Object.freeze({ id: '01', he: 'שלום. נתחיל.', en: "Hello. Let's begin." }),
+  Object.freeze({ id: '02', he: 'כל הכבוד.', en: 'Well done.' }),
+  Object.freeze({ id: '03', he: 'יפה מאוד.', en: 'Very nice.' }),
+  Object.freeze({ id: '04', he: 'מצוין.', en: 'Excellent.' }),
+  Object.freeze({ id: '05', he: 'עוד פעם.', en: 'Once more.' }),
+  Object.freeze({ id: '06', he: 'כמעט. עוד פעם.', en: 'Almost. Once more.' }),
+  Object.freeze({ id: '07', he: 'היה נעים. להתראות.', en: 'That was pleasant. Goodbye.' }),
+  Object.freeze({ id: '10', he: 'החולצה למכונה.', en: 'The shirt in the machine.' }),
+  Object.freeze({ id: '11', he: 'הגרב למכונה.', en: 'The sock in the machine.' }),
+  Object.freeze({ id: '12', he: 'המגבת למכונה.', en: 'The towel in the machine.' }),
+  Object.freeze({ id: '13', he: 'הכביסה מוכנה.', en: 'The laundry is ready.' }),
+  Object.freeze({ id: '14', he: 'איפה המכונה?', en: 'Where is the machine?' }),
+  Object.freeze({ id: '20', he: 'ננגן ביחד.', en: "Let's play together." }),
+  Object.freeze({ id: '21', he: 'איפה האור?', en: 'Where is the light?' }),
+  Object.freeze({ id: '22', he: 'זה נשמע יפה.', en: 'That sounds lovely.' }),
+  Object.freeze({ id: '23', he: 'עוד שיר?', en: 'Another song?' }),
+  Object.freeze({ id: '24', he: 'האדום.', en: 'The red one.' }),
+  Object.freeze({ id: '25', he: 'הכחול.', en: 'The blue one.' }),
+  Object.freeze({ id: '26', he: 'הירוק.', en: 'The green one.' }),
+  Object.freeze({ id: '27', he: 'הצהוב.', en: 'The yellow one.' }),
+]);
+
+function normalise(text) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+const PHRASE_IDS_BY_TEXT = {
+  he: new Map(PHRASES.map((phrase) => [normalise(phrase.he), phrase.id])),
+  en: new Map(PHRASES.map((phrase) => [normalise(phrase.en), phrase.id])),
+};
+
+export function phraseIdForText(language, text) {
+  if (typeof text !== 'string') return null;
+
+  const lookup = PHRASE_IDS_BY_TEXT[language];
+  if (!lookup) return null;
+
+  return lookup.get(normalise(text)) ?? null;
+}
+
+export function createRecordingStore(backend) {
+  if (!backend) throw new TypeError('A recording backend is required.');
+
+  return {
+    save(id, blob) {
+      return backend.save(id, blob);
+    },
+    get(id) {
+      return backend.get(id);
+    },
+    remove(id) {
+      return backend.remove(id);
+    },
+    ids() {
+      return backend.ids();
+    },
+  };
+}
+
+export function createMemoryBackend() {
+  const recordings = new Map();
+
+  return {
+    async save(id, blob) {
+      recordings.set(id, blob);
+    },
+    async get(id) {
+      return recordings.has(id) ? recordings.get(id) : null;
+    },
+    async remove(id) {
+      recordings.delete(id);
+    },
+    async ids() {
+      return [...recordings.keys()];
+    },
+  };
+}
+
+const DB_NAME = 'tablet-games-voice';
+const STORE_NAME = 'recordings';
+
+export function createIndexedDbBackend(indexedDB) {
+  if (!indexedDB) throw new TypeError('An IndexedDB implementation is required.');
+
+  let databasePromise = null;
+
+  function openDatabase() {
+    if (!databasePromise) {
+      databasePromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains(STORE_NAME)) {
+            database.createObjectStore(STORE_NAME);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('Could not open recordings.'));
+      });
+    }
+    return databasePromise;
+  }
+
+  function runTransaction(mode, action) {
+    return openDatabase().then((database) => new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, mode);
+      const result = action(transaction.objectStore(STORE_NAME));
+      transaction.oncomplete = () => resolve(result);
+      transaction.onerror = () => reject(transaction.error || new Error('Recording storage failed.'));
+      transaction.onabort = () => reject(transaction.error || new Error('Recording storage failed.'));
+    }));
+  }
+
+  return {
+    save(id, blob) {
+      return runTransaction('readwrite', (store) => {
+        store.put(blob, id);
+      });
+    },
+    get(id) {
+      return openDatabase().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readonly');
+        const request = transaction.objectStore(STORE_NAME).get(id);
+        request.onsuccess = () => resolve(request.result === undefined ? null : request.result);
+        request.onerror = () => reject(request.error || new Error('Could not read recording.'));
+      }));
+    },
+    remove(id) {
+      return runTransaction('readwrite', (store) => {
+        store.delete(id);
+      });
+    },
+    ids() {
+      return openDatabase().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readonly');
+        const request = transaction.objectStore(STORE_NAME).getAllKeys();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error || new Error('Could not list recordings.'));
+      }));
+    },
+  };
+}

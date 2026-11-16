@@ -47,6 +47,7 @@
       <div class="panel settings-panel">
         <h1 id="settings-title">Settings</h1>
         <button id="settings-resume" class="big-button primary" type="button">Resume</button>
+        <button id="settings-record" class="big-button" type="button">Record phrases</button>
 
         <label class="settings-toggle" for="setting-mute">
           <span id="mute-label" class="field-label">Mute speech</span>
@@ -110,6 +111,15 @@
 
         <button id="settings-exit" class="big-button" type="button">Exit</button>
         <button id="settings-reset" class="big-button warning" type="button">Reset</button>
+      </div>
+    </div>
+
+    <div id="recordings" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="recordings-title">
+      <div class="panel recordings-panel">
+        <h1 id="recordings-title">Record phrases</h1>
+        <p id="recordings-error" class="recording-error hidden" role="alert"></p>
+        <div id="recordings-list" class="recordings-list"></div>
+        <button id="recordings-close" class="big-button primary" type="button">Close</button>
       </div>
     </div>
 
