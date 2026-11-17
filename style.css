@@ -1378,3 +1378,696 @@ body.settings-open {
     transition: none !important;
   }
 }
+
+
+/* ---------------------------------------------------------------------------------
+   Shared effects (fx.js). One layer per stage, above the game, never catching touches.
+   --------------------------------------------------------------------------------- */
+
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fx-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.fx-ripple,
+.fx-pop {
+  --fx-size: 180px;
+  --fx-color: #ffffff;
+  position: absolute;
+  width: var(--fx-size);
+  height: var(--fx-size);
+  margin: calc(var(--fx-size) / -2) 0 0 calc(var(--fx-size) / -2);
+  border: 6px solid var(--fx-color);
+  border-radius: 50%;
+  opacity: 0;
+  animation: fx-ripple 520ms ease-out forwards;
+}
+
+.fx-pop {
+  --fx-size: 140px;
+  border-width: 10px;
+  animation: fx-pop 300ms ease-out forwards;
+}
+
+@keyframes fx-ripple {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.15);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes fx-pop {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+/* The finished thing, held large while the finale plays. */
+.fx-finale-hold {
+  animation: fx-finale-hold 3000ms ease-in-out both;
+}
+
+@keyframes fx-finale-hold {
+  0% {
+    transform: scale(1);
+    filter: none;
+  }
+
+  18%,
+  82% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 28px rgba(255, 212, 59, 0.7));
+  }
+
+  100% {
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-ripple,
+  .fx-pop {
+    animation-duration: 200ms;
+  }
+
+  .fx-finale-hold {
+    animation: none;
+    filter: drop-shadow(0 0 28px rgba(255, 212, 59, 0.7));
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Template toy (template-toy.js). Not registered; kept as the CSS pattern to copy:
+   every selector starts with the game's own prefix, dark stage, no white containers.
+   --------------------------------------------------------------------------------- */
+
+.template-toy-board {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border-radius: 32px;
+  background: var(--bg-soft);
+}
+
+.template-toy-dot {
+  position: absolute; /* --dot-size is set in px by template-toy.js */
+  width: var(--dot-size, 120px);
+  aspect-ratio: 1;
+  border: 8px solid var(--dot-color);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: background-color 200ms ease-out, transform 200ms ease-out;
+}
+
+.template-toy-dot.is-lit {
+  background: var(--dot-color);
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+.template-toy-dot.is-bonus {
+  box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.35), 0 0 48px var(--dot-color);
+}
+
+.template-toy-dot.is-wink {
+  animation: template-toy-wink 480ms ease-in-out;
+}
+
+@keyframes template-toy-wink {
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Bubble sheet (bubble-sheet.js). A dark sheet of domed bubbles; popped bubbles are
+   flat and darker, and a finished sheet flips over in a new colour.
+   --------------------------------------------------------------------------------- */
+
+.bubble-sheet-board {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  justify-content: stretch;
+  width: 100%;
+  min-height: 0;
+  perspective: 1400px;
+}
+
+.bubble-sheet-sheet {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border-radius: 40px;
+  background:
+    radial-gradient(ellipse at 50% 32%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 58%),
+    rgba(0, 0, 0, 0.22);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.12),
+    inset 0 22px 60px rgba(0, 0, 0, 0.3),
+    0 18px 50px rgba(0, 0, 0, 0.35);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: background-color 420ms ease, box-shadow 420ms ease;
+}
+
+.bubble-sheet-bubble {
+  position: absolute; /* --bubble-size is set in px by bubble-sheet.js */
+  width: var(--bubble-size, 120px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    var(--bubble-light, #b8ffe9) 0%,
+    var(--bubble-color, #5ee0bd) 46%,
+    var(--bubble-dark, #1c6d5c) 100%
+  );
+  box-shadow:
+    inset -10px -14px 30px rgba(0, 0, 0, 0.38),
+    inset 8px 10px 26px rgba(255, 255, 255, 0.28),
+    0 14px 30px rgba(0, 0, 0, 0.38);
+  transition:
+    transform 160ms ease-out,
+    background 160ms ease-out,
+    box-shadow 160ms ease-out,
+    opacity 160ms ease-out;
+}
+
+.bubble-sheet-bubble.is-popped {
+  transform: translate(-50%, -50%) scale(0.86);
+  opacity: 0.82;
+  background: radial-gradient(
+    circle at 42% 36%,
+    var(--bubble-dark, #1c6d5c) 0%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08),
+    inset 0 12px 28px rgba(0, 0, 0, 0.6);
+}
+
+.bubble-sheet-bubble.is-popping {
+  animation: bubble-sheet-squash 240ms ease-out;
+}
+
+.bubble-sheet-bubble.is-wink {
+  animation: bubble-sheet-wink 480ms ease-in-out;
+}
+
+.bubble-sheet-sheet.is-rippling .bubble-sheet-bubble {
+  animation: bubble-sheet-ripple 600ms ease-in-out;
+}
+
+.bubble-sheet-sheet.is-flipped {
+  animation: bubble-sheet-flip 600ms ease-in-out;
+}
+
+@keyframes bubble-sheet-squash {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  35% {
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(0.86);
+  }
+}
+
+@keyframes bubble-sheet-wink {
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes bubble-sheet-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.86);
+  }
+
+  40% {
+    transform: translate(-50%, -50%) scale(1.14);
+    filter: brightness(1.3);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(0.86);
+    filter: none;
+  }
+}
+
+@keyframes bubble-sheet-flip {
+  0% {
+    transform: rotateY(0deg) scale(1);
+  }
+
+  50% {
+    transform: rotateY(90deg) scale(0.96);
+  }
+
+  100% {
+    transform: rotateY(0deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble-sheet-bubble.is-popping,
+  .bubble-sheet-bubble.is-wink,
+  .bubble-sheet-sheet.is-rippling .bubble-sheet-bubble,
+  .bubble-sheet-sheet.is-flipped {
+    animation-duration: 200ms;
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Night sky (night-sky.js). A near-black sky, one low skyline, faint stars that light
+   and join into a picture while soft fireworks bloom over them.
+   --------------------------------------------------------------------------------- */
+
+.night-sky-board {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background:
+    radial-gradient(circle at 78% 16%, rgba(190, 220, 255, 0.07), transparent 22%),
+    radial-gradient(ellipse at 50% 108%, rgba(44, 88, 130, 0.38), transparent 58%),
+    linear-gradient(180deg, #01040b 0%, #04101f 58%, #071a2b 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -24px 70px rgba(0, 0, 0, 0.62);
+  touch-action: none;
+}
+
+.night-sky-skyline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  height: 15%;
+  background: #010307;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.7);
+}
+
+.night-sky-skyline::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: 16px;
+  background: repeating-linear-gradient(
+    90deg,
+    #010307 0 26px,
+    transparent 26px 44px
+  );
+}
+
+.night-sky-skyline::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 12%;
+  width: 14%;
+  height: 46%;
+  border-radius: 6px 6px 0 0;
+  background: #010307;
+}
+
+.night-sky-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.night-sky-line {
+  stroke: rgba(255, 226, 150, 0.82);
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(255, 212, 59, 0.8));
+  animation: night-sky-line-in 520ms ease-out both;
+}
+
+.night-sky-star {
+  --star-size: 44px;
+  position: absolute;
+  z-index: 2;
+  width: var(--star-size);
+  height: var(--star-size);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(192, 220, 255, 0.3) 42%,
+    transparent 70%
+  );
+  opacity: 0.34;
+  transform: translate(-50%, -50%) scale(0.72);
+  transition:
+    transform 520ms ease-out,
+    opacity 520ms ease-out,
+    filter 520ms ease-out,
+    background 520ms ease-out;
+  pointer-events: none;
+}
+
+.night-sky-star.is-lit {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.16);
+  background: radial-gradient(
+    circle,
+    #ffffff 0%,
+    #ffe08a 30%,
+    rgba(255, 212, 59, 0.3) 58%,
+    transparent 72%
+  );
+  filter: drop-shadow(0 0 14px rgba(255, 212, 59, 0.85));
+}
+
+.night-sky-star.is-bonus {
+  opacity: 0.9;
+  animation: night-sky-bonus 2600ms ease-in-out infinite;
+}
+
+.night-sky-star.is-wink {
+  animation: night-sky-wink 1100ms ease-in-out both;
+}
+
+@keyframes night-sky-bonus {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.86);
+    filter: drop-shadow(0 0 4px rgba(160, 200, 255, 0.45));
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.08);
+    filter: drop-shadow(0 0 16px rgba(160, 200, 255, 0.85));
+  }
+}
+
+@keyframes night-sky-wink {
+  0%,
+  100% {
+    opacity: 0.34;
+    transform: translate(-50%, -50%) scale(0.72);
+  }
+
+  40% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.2);
+    filter: brightness(1.4);
+  }
+}
+
+@keyframes night-sky-line-in {
+  0% {
+    opacity: 0;
+    stroke-width: 1;
+  }
+
+  100% {
+    opacity: 1;
+    stroke-width: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .night-sky-star.is-bonus,
+  .night-sky-star.is-wink,
+  .night-sky-line {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Colour pop (colour-pop.js). A dark box of marked coloured balls, with a glass jar
+   at the side that fills as the balls pop.
+   --------------------------------------------------------------------------------- */
+
+.colour-pop-bench {
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  gap: 14px;
+}
+
+.colour-pop-board {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(255, 255, 255, 0.08), transparent 56%),
+    linear-gradient(180deg, rgba(18, 24, 38, 0.9), rgba(6, 10, 18, 0.94));
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.1),
+    inset 0 24px 60px rgba(0, 0, 0, 0.35),
+    0 18px 50px rgba(0, 0, 0, 0.38);
+  touch-action: none;
+}
+
+.colour-pop-ball {
+  --coin-base: #ff7a6b;
+  --coin-light: #ffd2cb;
+  --coin-dark: #8f2c24;
+  position: absolute; /* --ball-size is set in px by colour-pop.js */
+  width: var(--ball-size, 120px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    var(--coin-light) 0%,
+    var(--coin-base) 48%,
+    var(--coin-dark) 100%
+  );
+  box-shadow:
+    inset -9px -13px 26px rgba(0, 0, 0, 0.4),
+    inset 7px 9px 22px rgba(255, 255, 255, 0.26),
+    0 12px 26px rgba(0, 0, 0, 0.4);
+  transition:
+    top 420ms cubic-bezier(0.34, 1.3, 0.64, 1),
+    left 220ms ease-out,
+    transform 180ms ease-out,
+    opacity 180ms ease-out,
+    box-shadow 220ms ease-out;
+}
+
+.colour-pop-ball--0 {
+  --coin-base: #ff7a6b;
+  --coin-light: #ffd2cb;
+  --coin-dark: #8f2c24;
+}
+
+.colour-pop-ball--1 {
+  --coin-base: #5c9dff;
+  --coin-light: #d3e2ff;
+  --coin-dark: #1f3f88;
+}
+
+.colour-pop-ball--2 {
+  --coin-base: #ffd43b;
+  --coin-light: #fff3b0;
+  --coin-dark: #8a6d00;
+}
+
+.colour-pop-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.colour-pop-ball--0 .colour-pop-mark::before {
+  content: "";
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
+}
+
+.colour-pop-ball--1 .colour-pop-mark::before {
+  content: "";
+  width: 48%;
+  height: 48%;
+  border: 4px solid rgba(255, 255, 255, 0.84);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.4);
+}
+
+.colour-pop-ball--2 .colour-pop-mark::before {
+  content: "";
+  width: 48%;
+  height: 13%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.colour-pop-ball.is-bonus {
+  animation: colour-pop-glow 2400ms ease-in-out infinite;
+}
+
+.colour-pop-ball.is-popping {
+  animation: colour-pop-squash 260ms ease-out forwards;
+  pointer-events: none;
+}
+
+.colour-pop-ball.is-wink {
+  animation: colour-pop-wink 460ms ease-in-out;
+}
+
+.colour-pop-jar {
+  --jar-fill: 0%;
+  position: relative;
+  display: flex;
+  flex: 0 0 clamp(72px, 11vw, 132px);
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 4px 6px;
+}
+
+.colour-pop-jar-glass {
+  position: relative;
+  width: 100%;
+  height: 84%;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.26);
+  border-radius: 18px 18px 28px 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+  box-shadow:
+    inset 0 0 24px rgba(255, 255, 255, 0.09),
+    0 14px 34px rgba(0, 0, 0, 0.42);
+  transition: box-shadow 420ms ease-out;
+}
+
+.colour-pop-jar-glass::before {
+  content: "";
+  position: absolute;
+  inset: 7% 16% auto;
+  height: 58%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.colour-pop-jar-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--jar-fill, 0%);
+  background: linear-gradient(180deg, #ffd43b 0%, #ff8fab 46%, #5c9dff 100%);
+  opacity: 0.88;
+  transition: height 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.colour-pop-jar.is-full .colour-pop-jar-glass {
+  box-shadow:
+    inset 0 0 28px rgba(255, 255, 255, 0.2),
+    0 0 34px rgba(255, 212, 59, 0.45),
+    0 14px 34px rgba(0, 0, 0, 0.42);
+}
+
+@keyframes colour-pop-glow {
+  0%,
+  100% {
+    box-shadow:
+      inset -9px -13px 26px rgba(0, 0, 0, 0.4),
+      inset 7px 9px 22px rgba(255, 255, 255, 0.26),
+      0 0 0 4px rgba(255, 255, 255, 0.12),
+      0 0 20px var(--coin-base);
+  }
+
+  50% {
+    box-shadow:
+      inset -9px -13px 26px rgba(0, 0, 0, 0.4),
+      inset 7px 9px 22px rgba(255, 255, 255, 0.26),
+      0 0 0 8px rgba(255, 255, 255, 0.22),
+      0 0 44px var(--coin-base);
+  }
+}
+
+@keyframes colour-pop-squash {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+
+  42% {
+    transform: translate(-50%, -50%) scale(1.16);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(0.18);
+    opacity: 0;
+  }
+}
+
+@keyframes colour-pop-wink {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+    filter: brightness(1.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .colour-pop-ball {
+    transition-duration: 1ms;
+  }
+
+  .colour-pop-ball.is-bonus,
+  .colour-pop-ball.is-popping,
+  .colour-pop-ball.is-wink {
+    animation: none;
+  }
+}

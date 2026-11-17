@@ -6,8 +6,15 @@ import {
   normalizeLanguage,
 } from './i18n.js';
 import { validateSong } from './music-logic.js';
+import {
+  LEGACY_GAME_TYPES,
+  REGISTERED_TYPES,
+  isRegisteredType,
+  starterPackGames,
+} from './registry.js';
 
-export const GAME_TYPES = Object.freeze(['buttons', 'drag', 'count', 'laundry', 'music', 'garden']);
+// Every playable type: the three old prompt games plus whatever registry.js registers.
+export const GAME_TYPES = Object.freeze([...LEGACY_GAME_TYPES, ...REGISTERED_TYPES]);
 
 export const MIN_LEVEL = 1;
 export const MAX_LEVEL = 5;
@@ -97,6 +104,14 @@ export function isEmojiOnly(value) {
   return typeof value === 'string' && value.length > 0 && EMOJI_ONLY.test(value);
 }
 
+const REGISTRY_LEVEL_PARAMS = Object.freeze({
+  1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
+  2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
+  3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
+  4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
+  5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
+});
+
 export const LEVEL_PARAMS = Object.freeze({
   buttons: Object.freeze({
     1: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
@@ -119,27 +134,9 @@ export const LEVEL_PARAMS = Object.freeze({
     4: Object.freeze({ targets: 5, targetSize: 125, choices: 5 }),
     5: Object.freeze({ targets: 5, targetSize: 110, choices: 6 }),
   }),
-  laundry: Object.freeze({
-    1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
-    2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
-    3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
-    4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
-    5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
-  }),
-  music: Object.freeze({
-    1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
-    2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
-    3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
-    4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
-    5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
-  }),
-  garden: Object.freeze({
-    1: Object.freeze({ targets: 1, targetSize: 340, choices: 2 }),
-    2: Object.freeze({ targets: 1, targetSize: 320, choices: 2 }),
-    3: Object.freeze({ targets: 1, targetSize: 300, choices: 2 }),
-    4: Object.freeze({ targets: 1, targetSize: 280, choices: 2 }),
-    5: Object.freeze({ targets: 1, targetSize: 260, choices: 2 }),
-  }),
+  // Registry games keep their own level state (see registry.js); the engine only needs a
+  // 1-5 table for them so the shared level and status code keeps working.
+  ...Object.fromEntries(REGISTERED_TYPES.map((type) => [type, REGISTRY_LEVEL_PARAMS])),
 });
 
 export const BUILTIN_STARTER_PACK = Object.freeze({
@@ -147,56 +144,7 @@ export const BUILTIN_STARTER_PACK = Object.freeze({
   id: 'starter',
   name: 'Starter',
   themes: STARTER_THEMES,
-  games: [
-    {
-      id: 'laundry',
-      type: 'laundry',
-      title: 'Laundry',
-      prompt: 'Put the laundry in the machine, {name}.',
-      translations: {
-        en: {
-          title: 'Laundry',
-          prompt: 'Put the laundry in the machine, {name}.',
-        },
-        he: {
-          title: 'כיבוס',
-          prompt: 'שים את הכביסה במכונה, {name}.',
-        },
-      },
-    },
-    {
-      id: 'music',
-      type: 'music',
-      title: 'Play along',
-      prompt: "Let's play a tune, {name}.",
-      translations: {
-        en: {
-          title: 'Play along',
-          prompt: "Let's play a tune, {name}.",
-        },
-        he: {
-          title: 'נגן',
-          prompt: 'בוא ננגן, {name}.',
-        },
-      },
-    },
-    {
-      id: 'garden',
-      type: 'garden',
-      title: 'Garden',
-      prompt: 'The garden is waiting, {name}.',
-      translations: {
-        en: {
-          title: 'Garden',
-          prompt: 'The garden is waiting, {name}.',
-        },
-        he: {
-          title: 'גינה',
-          prompt: 'הגינה מחכה, {name}.',
-        },
-      },
-    },
-  ],
+  games: starterPackGames(),
 });
 
 function isPlainObject(value) {
@@ -215,14 +163,7 @@ function clampLevel(value) {
 
 function normalizeLevels(levels) {
   const source = isPlainObject(levels) ? levels : {};
-  return {
-    buttons: clampLevel(source.buttons),
-    drag: clampLevel(source.drag),
-    count: clampLevel(source.count),
-    laundry: clampLevel(source.laundry),
-    music: clampLevel(source.music),
-    garden: clampLevel(source.garden),
-  };
+  return Object.fromEntries(GAME_TYPES.map((type) => [type, clampLevel(source[type])]));
 }
 
 function normalizeFixedLevel(value) {
@@ -234,14 +175,7 @@ function normalizeFixedLevel(value) {
 
 function normalizeFixedLevels(levels) {
   const source = isPlainObject(levels) ? levels : {};
-  return {
-    buttons: normalizeFixedLevel(source.buttons),
-    drag: normalizeFixedLevel(source.drag),
-    count: normalizeFixedLevel(source.count),
-    laundry: normalizeFixedLevel(source.laundry),
-    music: normalizeFixedLevel(source.music),
-    garden: normalizeFixedLevel(source.garden),
-  };
+  return Object.fromEntries(GAME_TYPES.map((type) => [type, normalizeFixedLevel(source[type])]));
 }
 
 function normalizeSelectedGame(value) {
@@ -317,36 +251,17 @@ export function createDefaultState(name = '') {
     language: DEFAULT_LANGUAGE,
     gender: DEFAULT_GENDER,
     themes: null,
-    levels: {
-      buttons: MIN_LEVEL,
-      drag: MIN_LEVEL,
-      count: MIN_LEVEL,
-      laundry: MIN_LEVEL,
-      music: MIN_LEVEL,
-      garden: MIN_LEVEL,
-    },
-    fixedLevels: {
-      buttons: null,
-      drag: null,
-      count: null,
-      laundry: null,
-      music: null,
-      garden: null,
-    },
+    levels: Object.fromEntries(GAME_TYPES.map((type) => [type, MIN_LEVEL])),
+    fixedLevels: Object.fromEntries(GAME_TYPES.map((type) => [type, null])),
     selectedGame: null,
     speechMuted: false,
     voiceURI: null,
     speechRate: DEFAULT_SPEECH_RATE,
     showTextLabels: false,
     showStatusLine: true,
-    stats: {
-      buttons: { successes: 0, failures: 0, recent: [] },
-      drag: { successes: 0, failures: 0, recent: [] },
-      count: { successes: 0, failures: 0, recent: [] },
-      laundry: { successes: 0, failures: 0, recent: [] },
-      music: { successes: 0, failures: 0, recent: [] },
-      garden: { successes: 0, failures: 0, recent: [] },
-    },
+    stats: Object.fromEntries(
+      GAME_TYPES.map((type) => [type, { successes: 0, failures: 0, recent: [] }]),
+    ),
   };
 }
 
@@ -801,7 +716,11 @@ export function validatePack(pack) {
       errors.push(`${at}.title must be a non-empty string when present`);
     }
 
-    validatePrompt(game, at, errors, game.type === 'buttons');
+    // Registry games draw their own scene and never read the pack prompt, so a pack may
+    // leave it out for them. A prompt that is present is still checked.
+    if (!isRegisteredType(game.type) || game.prompt !== undefined) {
+      validatePrompt(game, at, errors, game.type === 'buttons');
+    }
     validateTranslations(game, at, errors);
 
     if (game.type === 'buttons') {

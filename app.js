@@ -38,49 +38,34 @@ import {
 } from './engine.js';
 import {
   SPEECH_LANGS,
-  formatLaundryPrompt,
   formatPrompt as buildPrompt,
   formatText,
   gameColorName,
   gameText,
   itemName,
-  laundryItemName,
   normalizeGender,
   normalizeLanguage,
   t,
   themeName,
 } from './i18n.js';
+import { disposeFx } from './fx.js';
+import { SONGS as BUILTIN_SONGS } from './music-logic.js';
 import {
-  createDefaultLaundryState,
-  loadLaundryState,
-  recordMotorResult,
-  recordRuleResult,
-  saveLaundryState,
-} from './laundry-logic.js';
-import { renderLaundry } from './laundry.js';
-import {
-  SONGS as BUILTIN_SONGS,
-  createDefaultMusicState,
-  loadMusicState,
-  recordMotorResult as recordMusicMotorResult,
-  recordRuleResult as recordMusicRuleResult,
-  saveMusicState,
-} from './music-logic.js';
-import { renderMusic } from './music.js';
-import {
-  createDefaultGardenState,
-  loadGardenState,
-  recordDensityResult as recordGardenDensityResult,
-  recordMotorResult as recordGardenMotorResult,
-  recordRuleResult as recordGardenRuleResult,
-  saveGardenState,
-} from './garden-logic.js';
-import { renderGarden } from './garden.js';
+  GAMES,
+  applyOutcome,
+  gameTypeLabel as registryTypeLabel,
+  getGame,
+  levelChoiceFor,
+  levelOptions,
+  resolveLevels,
+  withRegisteredGames,
+} from './registry.js';
 import {
   PHRASES,
   createIndexedDbBackend,
   createRecordingStore,
   phraseIdForText,
+  phraseText,
 } from './phrases.js';
 import {
   MIN_TOUCH_DURATION_MS,
@@ -153,14 +138,14 @@ const els = {
 };
 
 let state = loadState(window.localStorage);
-let laundryState = loadLaundryState(window.localStorage);
-let laundryCleanup = null;
-let laundryFailureStreak = 0;
-let musicState = loadMusicState(window.localStorage);
-let musicCleanup = null;
+// Level state of every registry game, by game type (see registry.js).
+let levelStates = Object.fromEntries(
+  GAMES.map((game) => [game.type, game.state.load(window.localStorage)]),
+);
+let gameCleanup = null;
+let gameFailureStreak = 0;
 let musicSongs = [...BUILTIN_SONGS];
-let gardenState = loadGardenState(window.localStorage);
-let gardenCleanup = null;
+let loadedPacks = [];
 let games = [];
 let allThemes = [];
 let packsReady = null;
@@ -513,20 +498,49 @@ function updateStatusLine() {
   const game = gameText(currentGame, language()).title || text('appTitle');
   const level = effectiveLevel(state, currentGame.type);
   const minutes = minutesPlayed(gameSessionStartedAt, performance.now());
-  els.statusLine.textContent = text('statusLine', { game, level, minutes });
+  const registered = getGame(currentGame.type);
+  let line = '';
+  if (registered?.statusText) {
+    try {
+      line = registered.statusText({
+        title: game,
+        level,
+        minutes,
+        levels: gameLevels(registered),
+        language: language(),
+      });
+    } catch {
+      line = '';
+    }
+  }
+  els.statusLine.textContent =
+    typeof line === 'string' && line ? line : text('statusLine', { game, level, minutes });
   els.statusLine.classList.remove('hidden');
 }
 
 function gameTypeLabel(type) {
+  const registered = getGame(type);
+  if (registered) return registryTypeLabel(registered, language());
   const keys = {
     buttons: 'typeButtons',
     drag: 'typeDrag',
     count: 'typeCount',
-    laundry: 'typeLaundry',
-    music: 'typeMusic',
-    garden: 'typeGarden',
   };
   return text(keys[type] || 'typeButtons');
+}
+
+// The levels the settings chooser offers for a game type, and what they pin.
+function levelChoice(type) {
+  const registered = getGame(type);
+  if (registered) return levelChoiceFor(registered, language());
+  return { dimension: null, label: '', levels: [1, 2, 3, 4, 5] };
+}
+
+function fixedLevelValue(type) {
+  const fixed = state.fixedLevels[type];
+  if (fixed === null || fixed === undefined) return '';
+  const { levels } = levelChoice(type);
+  return String(Math.min(levels[levels.length - 1], Math.max(levels[0], fixed)));
 }
 
 function chosenGame() {
@@ -564,7 +578,9 @@ function renderGameChooser() {
 function renderLevelChooser() {
   if (!els.settingLevel) return;
   const type = currentSettingsGameType();
-  els.levelLabel.textContent = text('levelFor', { type: gameTypeLabel(type) });
+  const choice = levelChoice(type);
+  const label = text('levelFor', { type: gameTypeLabel(type) });
+  els.levelLabel.textContent = choice.label ? `${label} (${choice.label})` : label;
   els.settingLevel.replaceChildren();
 
   const auto = document.createElement('option');
@@ -572,15 +588,14 @@ function renderLevelChooser() {
   auto.textContent = text('auto');
   els.settingLevel.append(auto);
 
-  for (let level = 1; level <= 5; level += 1) {
+  for (const level of choice.levels) {
     const option = document.createElement('option');
     option.value = String(level);
     option.textContent = text('level', { level });
     els.settingLevel.append(option);
   }
 
-  const fixed = state.fixedLevels[type];
-  els.settingLevel.value = fixed === null ? '' : String(fixed);
+  els.settingLevel.value = fixedLevelValue(type);
 }
 
 function renderRateChooser() {
@@ -619,9 +634,7 @@ function syncSettingsFields() {
   els.settingStatusLine.checked = state.showStatusLine;
   if (document.activeElement !== els.settingName) els.settingName.value = state.name;
   els.settingGame.value = chosenGame() ? state.selectedGame : '';
-  const type = currentSettingsGameType();
-  const fixed = state.fixedLevels[type];
-  els.settingLevel.value = fixed === null ? '' : String(fixed);
+  els.settingLevel.value = fixedLevelValue(currentSettingsGameType());
   els.settingLanguage.value = language();
   els.settingGender.value = gender();
   const voiceValues = new Set([...els.settingVoice.options].map((option) => option.value));
@@ -1176,7 +1189,9 @@ async function loadPacks() {
 }
 
 function refreshGames(packs) {
-  games = packsToGames(packs);
+  loadedPacks = Array.isArray(packs) ? packs : [];
+  // Pack games first, then every registered game no pack lists (see registry.js).
+  games = withRegisteredGames(packsToGames(packs));
   allThemes = packsToThemes(packs);
   const packSongs = packsToSongs(packs);
   const seenSongs = new Set();
@@ -1208,18 +1223,17 @@ function clearRoundTimers() {
   window.clearTimeout(idleTimer);
   retryTimer = null;
   idleTimer = null;
-  if (laundryCleanup) {
-    laundryCleanup();
-    laundryCleanup = null;
+  if (gameCleanup) {
+    const cleanup = gameCleanup;
+    gameCleanup = null;
+    try {
+      cleanup();
+    } catch {
+      /* a game that fails to clean up must not block the next round */
+    }
   }
-  if (musicCleanup) {
-    musicCleanup();
-    musicCleanup = null;
-  }
-  if (gardenCleanup) {
-    gardenCleanup();
-    gardenCleanup = null;
-  }
+  // Shared effects (ripples, sparks, a finale in flight) never outlive their round.
+  disposeFx(els.stage);
 }
 
 function markTouch() {
@@ -1255,35 +1269,19 @@ function createRound(game, params) {
   const items = selectedItems();
   const useItems = items.length > 0;
 
-  if (game.type === 'laundry') {
-    return {
-      type: 'laundry',
+  const registered = getGame(game.type);
+  if (registered) {
+    const round = {
+      type: registered.type,
       promptText: '',
       silentPrompt: true,
       startedAt: performance.now(),
       done: false,
     };
-  }
-
-  if (game.type === 'music') {
-    return {
-      type: 'music',
-      song: pick(musicSongs.length ? musicSongs : [...BUILTIN_SONGS]),
-      promptText: '',
-      silentPrompt: true,
-      startedAt: performance.now(),
-      done: false,
-    };
-  }
-
-  if (game.type === 'garden') {
-    return {
-      type: 'garden',
-      promptText: '',
-      silentPrompt: true,
-      startedAt: performance.now(),
-      done: false,
-    };
+    if (registered.createRound) {
+      Object.assign(round, registered.createRound(gameContext(registered, round)) || {});
+    }
+    return round;
   }
 
   if (game.type === 'buttons') {
@@ -1356,6 +1354,7 @@ function startRound(gameOverride = null) {
   if (!games.length) refreshGames([BUILTIN_STARTER_PACK]);
 
   const previousGameId = currentGame?.id ?? null;
+  const previousType = currentGame?.type ?? null;
   const fixed = chosenGame();
 
   if (gameOverride && !fixed) {
@@ -1364,7 +1363,6 @@ function startRound(gameOverride = null) {
     currentGame = chooseGameForRound(games, state, null, 0) || games[0];
     roundsInType = 1;
   } else {
-    const previousType = currentGame.type;
     currentGame = chooseGameForRound(games, state, currentGame, roundsInType) || games[0];
     roundsInType = currentGame.type === previousType ? roundsInType + 1 : 1;
   }
@@ -1372,7 +1370,7 @@ function startRound(gameOverride = null) {
   if (gameSessionStartedAt === null || previousGameId !== currentGame.id) {
     gameSessionStartedAt = performance.now();
   }
-  if (currentGame.type !== 'laundry') laundryFailureStreak = 0;
+  if (previousType !== currentGame.type) gameFailureStreak = 0;
 
   const level = effectiveLevel(state, currentGame.type);
   const params = getLevelParams(currentGame.type, level);
@@ -1402,269 +1400,158 @@ function setChoiceColumns(choices, count) {
 }
 
 function renderRound(game, params, round) {
+  const registered = getGame(game.type);
   els.stage.replaceChildren();
-  if (
-    state.showTextLabels &&
-    game.type !== 'laundry' &&
-    game.type !== 'music' &&
-    game.type !== 'garden'
-  ) {
+  if (state.showTextLabels && !registered) {
     els.stage.append(promptElement(round.promptText));
   }
   els.stage.dataset.game = game.type;
 
-  if (game.type === 'buttons') renderButtons(game, params, round);
+  if (registered) renderRegisteredRound(registered, round);
+  else if (game.type === 'buttons') renderButtons(game, params, round);
   else if (game.type === 'count') renderCount(params, round);
-  else if (game.type === 'laundry') renderLaundryRound(round);
-  else if (game.type === 'music') renderMusicRound(round);
-  else if (game.type === 'garden') renderGardenRound(round);
   else renderDrag(params, round);
 }
 
-function laundryLevels() {
-  const fixed = state.fixedLevels.laundry;
-  const motorLevel =
-    fixed === null || fixed === undefined
-      ? laundryState.motor.level
-      : Math.min(4, Math.max(1, Math.round(Number(fixed) || 1)));
-  const ruleLevel = Math.min(3, Math.max(1, laundryState.rule.level));
-  return { motorLevel, ruleLevel };
+// ---------------------------------------------------------------------------------
+// Registry games. Everything game-specific comes from the entry in registry.js.
+// ---------------------------------------------------------------------------------
+
+function gameLevels(registered) {
+  return resolveLevels(
+    registered,
+    levelStates[registered.type],
+    state.fixedLevels[registered.type] ?? null,
+  );
 }
 
-function laundryPrompt(item) {
-  return formatLaundryPrompt({
+function gameContext(registered, round) {
+  return {
+    game: registered,
+    round,
+    levelState: levelStates[registered.type],
+    levels: gameLevels(registered),
     language: language(),
     gender: gender(),
     name: displayName(),
-    kind: item.kind,
-  });
+    songs: musicSongs,
+    packs: loadedPacks,
+  };
 }
 
-function handleLaundryOutcome(success, info = {}, round) {
-  if (!started || !currentGame || currentGame.type !== 'laundry' || overlayOpen()) return;
+function gameIsCurrent(registered, round) {
+  return (
+    started &&
+    currentGame?.type === registered.type &&
+    currentRound === round &&
+    !overlayOpen()
+  );
+}
+
+function saveLevelState(registered, next) {
+  levelStates[registered.type] = next;
+  registered.state.save(window.localStorage, next);
+}
+
+function handleGameOutcome(registered, success, info, round) {
+  if (!started || !currentGame || currentGame.type !== registered.type || overlayOpen()) return;
+  const details = info && typeof info === 'object' ? info : {};
 
   const reactionMs = Math.max(0, performance.now() - (round?.startedAt || performance.now()));
-  state = recordResult(state, 'laundry', { success, reactionMs });
-
-  const reason = info.reason;
-  if (reason === 'rule') {
-    laundryState = recordMotorResult(laundryState, { success: true });
-    laundryState = recordRuleResult(laundryState, { success: false });
-  } else if (reason === 'motor') {
-    laundryState = recordMotorResult(laundryState, { success: false });
-  } else {
-    laundryState = recordMotorResult(laundryState, { success: true });
-    laundryState = recordRuleResult(laundryState, { success: true });
-  }
-  saveLaundryState(window.localStorage, laundryState);
+  state = recordResult(state, registered.type, { success, reactionMs });
+  saveLevelState(registered, applyOutcome(registered, levelStates[registered.type], success, details));
 
   persist();
   updateHud();
   updateStatusLine();
 
   if (success) {
-    laundryFailureStreak = 0;
-    playSuccessTone();
-    speech.speak(text(pick(PRAISE_KEYS)));
-    roundsInType += 1;
-    if (!chosenGame() && roundsInType >= ROUNDS_PER_TYPE) {
-      const scheduledGame = round;
+    gameFailureStreak = 0;
+    if (registered.successFeedback === 'praise') {
+      playSuccessTone();
+      speech.speak(text(pick(PRAISE_KEYS)));
+    }
+    let restart = true;
+    if (registered.afterSuccess === 'continue') {
+      roundsInType += 1;
+      restart = !chosenGame() && roundsInType >= ROUNDS_PER_TYPE;
+    }
+    if (restart) {
       retryTimer = window.setTimeout(() => {
-        if (currentRound !== scheduledGame || currentGame?.type !== 'laundry' || overlayOpen()) {
+        if (currentRound !== round || currentGame?.type !== registered.type || overlayOpen()) {
           return;
         }
         startRound();
-      }, 1600);
+      }, registered.restartDelayMs);
     }
   } else {
-    laundryFailureStreak += 1;
-    if (laundryFailureStreak >= 3 && !chosenGame()) {
+    gameFailureStreak += 1;
+    if (
+      registered.rotateAfterFailures > 0 &&
+      gameFailureStreak >= registered.rotateAfterFailures &&
+      !chosenGame()
+    ) {
       roundsInType = ROUNDS_PER_TYPE;
     }
-    speech.speak(text('tryAgain', { name: displayName() }));
+    if (registered.failureFeedback === 'tryAgain') {
+      speech.speak(text('tryAgain', { name: displayName() }));
+    }
   }
 
   idleState = createIdleState(performance.now());
   scheduleIdlePrompt();
 }
 
-function renderLaundryRound(round) {
-  const levels = laundryLevels();
-  laundryCleanup = renderLaundry(els.stage, {
-    motorLevel: levels.motorLevel,
-    ruleLevel: levels.ruleLevel,
-    capacity: laundryState.machine.capacity,
-    language: language(),
-    gender: gender(),
-    name: displayName(),
-    showTextLabels: state.showTextLabels,
-    getLevels: laundryLevels,
-    itemLabel: (item) => laundryItemName(language(), item.kind),
-    promptForItem: laundryPrompt,
-    getAudioContext: () => {
-      unlockedAudio();
-      return audioContext;
-    },
-    onPrompt: (promptText) => {
-      round.promptText = promptText;
-      idleState = createIdleState(performance.now());
-      scheduleIdlePrompt();
-      speech.speak(promptText, language(), { afterCurrent: true });
-    },
-    onSuccess: (info) => handleLaundryOutcome(true, info, round),
-    onFailure: (info) => handleLaundryOutcome(false, info, round),
-  });
-}
+function renderRegisteredRound(registered, round) {
+  const context = gameContext(registered, round);
+  const extra = registered.options ? registered.options(context) || {} : {};
+  const getLevels = () => levelOptions(registered, gameLevels(registered));
 
-function musicLevels() {
-  const fixed = state.fixedLevels.music;
-  const motorLevel =
-    fixed === null || fixed === undefined
-      ? musicState.motor.level
-      : Math.min(4, Math.max(1, Math.round(Number(fixed) || 1)));
-  const ruleLevel = Math.min(2, Math.max(1, musicState.rule.level));
-  return { motorLevel, ruleLevel };
-}
-
-function handleMusicOutcome(success, info = {}, round) {
-  if (!started || !currentGame || currentGame.type !== 'music' || overlayOpen()) return;
-
-  const reactionMs = Math.max(0, performance.now() - (round?.startedAt || performance.now()));
-  state = recordResult(state, 'music', { success, reactionMs });
-
-  const reason = info.reason;
-  if (reason === 'rule') {
-    musicState = recordMusicMotorResult(musicState, { success: true });
-    musicState = recordMusicRuleResult(musicState, { success: false });
-  } else if (reason === 'motor') {
-    musicState = recordMusicMotorResult(musicState, { success: false });
-  } else {
-    musicState = recordMusicMotorResult(musicState, { success: true });
-    musicState = recordMusicRuleResult(musicState, { success: true });
-  }
-  saveMusicState(window.localStorage, musicState);
-
-  persist();
-  updateHud();
-  updateStatusLine();
-
-  if (success) {
-    playSuccessTone();
-    speech.speak(text(pick(PRAISE_KEYS)));
-    retryTimer = window.setTimeout(() => {
-      if (currentRound !== round || currentGame?.type !== 'music' || overlayOpen()) {
-        return;
-      }
-      startRound();
-    }, 1600);
-  } else {
-    speech.speak(text('tryAgain', { name: displayName() }));
-  }
-
-  idleState = createIdleState(performance.now());
-  scheduleIdlePrompt();
-}
-
-function renderMusicRound(round) {
-  const levels = musicLevels();
-  musicCleanup = renderMusic(els.stage, {
-    motorLevel: levels.motorLevel,
-    ruleLevel: levels.ruleLevel,
-    song: round.song,
-    language: language(),
-    name: displayName(),
+  gameCleanup = registered.render(els.stage, {
+    ...getLevels(),
+    levels: context.levels,
+    getLevels,
+    language: context.language,
+    gender: context.gender,
+    name: context.name,
     showTextLabels: state.showTextLabels,
     getAudioContext: () => {
       unlockedAudio();
       return audioContext;
     },
+    // Speaks free text (family recording when the text is in the phrase catalog) and
+    // makes it the line repeated after a long idle.
     onPrompt: (promptText) => {
+      if (!gameIsCurrent(registered, round)) return;
       round.promptText = promptText;
       idleState = createIdleState(performance.now());
       scheduleIdlePrompt();
       speech.speak(promptText, language(), { afterCurrent: true });
     },
-    onSuccess: (info) => handleMusicOutcome(true, info, round),
-    onFailure: (info) => handleMusicOutcome(false, info, round),
-  });
-}
-
-function gardenLevels() {
-  const fixed = state.fixedLevels.garden;
-  const motorLevel =
-    fixed === null || fixed === undefined
-      ? gardenState.motor.level
-      : Math.min(3, Math.max(1, Math.round(Number(fixed) || 1)));
-  const ruleLevel = Math.min(3, Math.max(1, gardenState.rule.level));
-  const densityLevel = Math.min(3, Math.max(1, gardenState.density.level));
-  return { motorLevel, ruleLevel, densityLevel };
-}
-
-function handleGardenOutcome(success, info = {}, round) {
-  if (!started || !currentGame || currentGame.type !== 'garden' || overlayOpen()) return;
-
-  const reactionMs = Math.max(0, performance.now() - (round?.startedAt || performance.now()));
-  state = recordResult(state, 'garden', { success, reactionMs });
-
-  const reason = info.reason;
-  if (reason === 'rule') {
-    gardenState = recordGardenMotorResult(gardenState, { success: true });
-    gardenState = recordGardenRuleResult(gardenState, { success: false });
-    gardenState = recordGardenDensityResult(gardenState, { success: false });
-  } else if (reason === 'motor') {
-    gardenState = recordGardenMotorResult(gardenState, { success: false });
-    gardenState = recordGardenDensityResult(gardenState, { success: false });
-  } else {
-    gardenState = recordGardenMotorResult(gardenState, { success: true });
-    gardenState = recordGardenRuleResult(gardenState, { success: true });
-    gardenState = recordGardenDensityResult(gardenState, { success: true });
-  }
-  saveGardenState(window.localStorage, gardenState);
-
-  persist();
-  updateHud();
-  updateStatusLine();
-
-  if (success) {
-    playSuccessTone();
-    speech.speak(text(pick(PRAISE_KEYS)));
-    retryTimer = window.setTimeout(() => {
-      if (currentRound !== round || currentGame?.type !== 'garden' || overlayOpen()) {
-        return;
-      }
-      startRound();
-    }, 1600);
-  } else {
-    speech.speak(text('tryAgain', { name: displayName() }));
-  }
-
-  idleState = createIdleState(performance.now());
-  scheduleIdlePrompt();
-}
-
-function renderGardenRound(round) {
-  const levels = gardenLevels();
-  gardenCleanup = renderGarden(els.stage, {
-    motorLevel: levels.motorLevel,
-    ruleLevel: levels.ruleLevel,
-    densityLevel: levels.densityLevel,
-    language: language(),
-    gender: gender(),
-    name: displayName(),
-    showTextLabels: state.showTextLabels,
-    getAudioContext: () => {
-      unlockedAudio();
-      return audioContext;
+    // Speaks one catalog phrase by id, once, and never repeats it on idle. Only ids the
+    // registry entry lists in `phrases` are spoken.
+    say: (phraseId) => {
+      if (!gameIsCurrent(registered, round)) return false;
+      if (!registered.phrases.includes(phraseId)) return false;
+      const line = phraseText(phraseId, language());
+      if (!line) return false;
+      speech.speak(line, language(), { afterCurrent: true });
+      return true;
     },
-    onPrompt: (promptText) => {
-      round.promptText = promptText;
-      idleState = createIdleState(performance.now());
-      scheduleIdlePrompt();
-      speech.speak(promptText, language(), { afterCurrent: true });
+    // Adaptation only, in the middle of a unit: no praise, no new round.
+    onAdapt: (info) => {
+      if (!gameIsCurrent(registered, round)) return;
+      const details = info && typeof info === 'object' ? info : {};
+      saveLevelState(
+        registered,
+        applyOutcome(registered, levelStates[registered.type], details.success !== false, details),
+      );
     },
-    onSuccess: (info) => handleGardenOutcome(true, info, round),
-    onFailure: (info) => handleGardenOutcome(false, info, round),
+    onSuccess: (info) => handleGameOutcome(registered, true, info, round),
+    onFailure: (info) => handleGameOutcome(registered, false, info, round),
+    ...extra,
   });
+  if (typeof gameCleanup !== 'function') gameCleanup = null;
 }
 
 function renderButtons(game, params, round) {
@@ -2026,12 +1913,10 @@ function handleReset() {
     /* ignore */
   }
   state = createDefaultState();
-  laundryState = createDefaultLaundryState();
-  saveLaundryState(window.localStorage, laundryState);
-  musicState = createDefaultMusicState();
-  saveMusicState(window.localStorage, musicState);
-  gardenState = createDefaultGardenState();
-  saveGardenState(window.localStorage, gardenState);
+  for (const registered of GAMES) {
+    saveLevelState(registered, registered.state.createDefault());
+  }
+  gameFailureStreak = 0;
   started = false;
   currentGame = null;
   currentRound = null;

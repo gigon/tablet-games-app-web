@@ -26,6 +26,17 @@ export const PHRASES = Object.freeze([
   Object.freeze({ id: '44', he: 'הפרח הוורוד.', en: 'The pink flower.' }),
   Object.freeze({ id: '45', he: 'הפרח הלבן.', en: 'The white flower.' }),
   Object.freeze({ id: '46', he: 'הוא פרח.', en: 'It bloomed.' }),
+  Object.freeze({ id: '50', he: 'בועות.', en: 'Bubbles.' }),
+  Object.freeze({ id: '51', he: 'הכול פוצץ.', en: 'All popped.' }),
+  Object.freeze({ id: '52', he: 'עוד דף?', en: 'Another sheet?' }),
+  Object.freeze({ id: '120', he: 'שמי לילה.', en: 'Night sky.' }),
+  Object.freeze({ id: '121', he: 'סירה.', en: 'A boat.' }),
+  Object.freeze({ id: '122', he: 'לב.', en: 'A heart.' }),
+  Object.freeze({ id: '123', he: 'יונה.', en: 'A dove.' }),
+  Object.freeze({ id: '124', he: 'עוד כוכב?', en: 'Another star?' }),
+  Object.freeze({ id: '130', he: 'כדורים.', en: 'Balls.' }),
+  Object.freeze({ id: '131', he: 'הרבה.', en: 'So many.' }),
+  Object.freeze({ id: '132', he: 'הצנצנת מלאה.', en: 'The jar is full.' }),
 ]);
 
 function normalise(text) {
@@ -44,6 +55,15 @@ export function phraseIdForText(language, text) {
   if (!lookup) return null;
 
   return lookup.get(normalise(text)) ?? null;
+}
+
+const PHRASES_BY_ID = new Map(PHRASES.map((phrase) => [phrase.id, phrase]));
+
+// The text of one catalog phrase in a language, or '' for an unknown id.
+export function phraseText(id, language) {
+  const phrase = PHRASES_BY_ID.get(id);
+  if (!phrase) return '';
+  return language === 'en' ? phrase.en : phrase.he;
 }
 
 export function createRecordingStore(backend) {
