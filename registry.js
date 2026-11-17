@@ -449,6 +449,8 @@ export function defineGame(entry) {
     ),
     dimensions,
     levelChoice: entry.levelChoice || dimensions[0].id,
+    // New-style games: the caregiver's level pins every dimension, so each step is visible.
+    pinAll: Boolean(ladder),
     adapt: ladder ? ladder.adapt : entry.adapt,
     options: entry.options || null,
     createRound: entry.createRound || null,
@@ -554,6 +556,12 @@ export function levelChoiceDimension(game) {
 // What the settings "level" chooser offers for a game: which dimension it pins, its
 // label and the levels on offer.
 export function levelChoiceFor(game, language) {
+  if (game.pinAll) {
+    const top = Math.max(...game.dimensions.map((dimension) => dimension.max));
+    const levels = [];
+    for (let level = 1; level <= top; level += 1) levels.push(level);
+    return { dimension: 'all', label: language === 'he' ? 'כללי' : 'overall', levels };
+  }
   const dimension = levelChoiceDimension(game);
   const levels = [];
   for (let level = dimension.min; level <= dimension.max; level += 1) levels.push(level);
@@ -568,7 +576,8 @@ export function resolveLevels(game, levelState, fixedLevel = null) {
   const result = {};
   for (const dimension of game.dimensions) {
     const stored = isPlainObject(source[dimension.id]) ? source[dimension.id].level : dimension.min;
-    const value = dimension.id === game.levelChoice && pinned !== null ? pinned : stored;
+    const isPinned = game.pinAll || dimension.id === game.levelChoice;
+    const value = isPinned && pinned !== null ? pinned : stored;
     result[dimension.id] = clampLevel(value, dimension.min, dimension.max);
   }
   return result;
