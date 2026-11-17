@@ -45,6 +45,14 @@ import { NIGHT_LADDER } from './night-sky-logic.js';
 import { renderNightSky } from './night-sky.js';
 import { COLOUR_LADDER } from './colour-pop-logic.js';
 import { renderColourPop } from './colour-pop.js';
+import { SOAP_LADDER } from './soap-bubbles-logic.js';
+import { renderSoapBubbles } from './soap-bubbles.js';
+import { WINDOW_LADDER } from './window-logic.js';
+import { renderWindow } from './window.js';
+import { KALEIDOSCOPE_LADDER } from './kaleidoscope-logic.js';
+import { renderKaleidoscope } from './kaleidoscope.js';
+import { STAINED_LADDER } from './stained-glass-logic.js';
+import { renderStainedGlass } from './stained-glass.js';
 import { PHRASES } from './phrases.js';
 
 // The three old prompt-and-answer types are drawn by app.js itself and are not registry
@@ -208,6 +216,34 @@ const GAME_ENTRIES = [
     render: renderColourPop,
     ladder: COLOUR_LADDER,
     phrases: ['130', '131', '132'],
+  },
+  {
+    type: 'soap-bubbles',
+    titles: { he: 'בועות סבון', en: 'Soap bubbles' },
+    render: renderSoapBubbles,
+    ladder: SOAP_LADDER,
+    phrases: ['60', '61', '62', '63'],
+  },
+  {
+    type: 'window',
+    titles: { he: 'חלון', en: 'The window' },
+    render: renderWindow,
+    ladder: WINDOW_LADDER,
+    phrases: ['90', '91', '92', '93', '94'],
+  },
+  {
+    type: 'kaleidoscope',
+    titles: { he: 'קליידוסקופ', en: 'Kaleidoscope' },
+    render: renderKaleidoscope,
+    ladder: KALEIDOSCOPE_LADDER,
+    phrases: ['150', '151', '152'],
+  },
+  {
+    type: 'stained-glass',
+    titles: { he: "ויטראז'", en: 'Stained glass' },
+    render: renderStainedGlass,
+    ladder: STAINED_LADDER,
+    phrases: ['160', '161', '162', '163', '164'],
   },
 ];
 
