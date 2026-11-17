@@ -53,6 +53,16 @@ import { KALEIDOSCOPE_LADDER } from './kaleidoscope-logic.js';
 import { renderKaleidoscope } from './kaleidoscope.js';
 import { STAINED_LADDER } from './stained-glass-logic.js';
 import { renderStainedGlass } from './stained-glass.js';
+import { FISH_LADDER } from './fish-pond-logic.js';
+import { renderFishPond } from './fish-pond.js';
+import { SAND_LADDER } from './sand-jar-logic.js';
+import { renderSandJar } from './sand-jar.js';
+import { POTTERY_LADDER } from './pottery-wheel-logic.js';
+import { renderPotteryWheel } from './pottery-wheel.js';
+import { FRUIT_LADDER } from './fruit-bowl-logic.js';
+import { renderFruitBowl } from './fruit-bowl.js';
+import { MARBLE_LADDER } from './marble-drop-logic.js';
+import { renderMarbleDrop } from './marble-drop.js';
 import { PHRASES } from './phrases.js';
 
 // The three old prompt-and-answer types are drawn by app.js itself and are not registry
@@ -244,6 +254,44 @@ const GAME_ENTRIES = [
     render: renderStainedGlass,
     ladder: STAINED_LADDER,
     phrases: ['160', '161', '162', '163', '164'],
+  },
+  {
+    type: 'fish-pond',
+    titles: { he: 'בריכת דגים', en: 'Fish pond' },
+    render: renderFishPond,
+    ladder: FISH_LADDER,
+    phrases: ['70', '71', '72', '73'],
+    afterSuccess: 'continue',
+  },
+  {
+    type: 'sand-jar',
+    titles: { he: 'חול צבעוני', en: 'Sand jar' },
+    render: renderSandJar,
+    ladder: SAND_LADDER,
+    phrases: ['80', '81', '82'],
+    afterSuccess: 'continue',
+  },
+  {
+    type: 'pottery-wheel',
+    titles: { he: 'אובניים', en: 'Pottery wheel' },
+    render: renderPotteryWheel,
+    ladder: POTTERY_LADDER,
+    phrases: ['140', '141', '142', '24', '25', '26'],
+    afterSuccess: 'continue',
+  },
+  {
+    type: 'fruit-bowl',
+    titles: { he: 'קערת פירות', en: 'Fruit bowl' },
+    render: renderFruitBowl,
+    ladder: FRUIT_LADDER,
+    phrases: ['110', '111', '112', '113', '114', '115', '116', '117'],
+  },
+  {
+    type: 'marble-drop',
+    titles: { he: 'גולות', en: 'Marble drop' },
+    render: renderMarbleDrop,
+    ladder: MARBLE_LADDER,
+    phrases: ['100', '101', '102'],
   },
 ];
 

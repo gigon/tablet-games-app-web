@@ -2839,3 +2839,1252 @@ body.settings-open {
     filter: none;
   }
 }
+
+/* ---------------------------------------------------------------------------------
+   Fish pond (fish-pond.js). Dark teal water, slow light patches, koi that steer to the
+   food a touch drops, and lilies that open when a fish swims past.
+   --------------------------------------------------------------------------------- */
+
+.fish-pond-board {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background:
+    radial-gradient(ellipse at 30% 18%, rgba(126, 236, 214, 0.1), transparent 44%),
+    radial-gradient(ellipse at 76% 82%, rgba(74, 166, 190, 0.14), transparent 52%),
+    linear-gradient(158deg, #062c33 0%, #083f47 48%, #04242c 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(180, 255, 240, 0.08),
+    inset 0 -28px 80px rgba(0, 0, 0, 0.52),
+    0 18px 50px rgba(0, 0, 0, 0.4);
+  touch-action: none;
+}
+
+.fish-pond-board::before,
+.fish-pond-board::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -16%;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: fish-pond-drift 22000ms ease-in-out infinite alternate;
+}
+
+.fish-pond-board::before {
+  background: radial-gradient(ellipse at 34% 38%, rgba(168, 255, 229, 0.11), transparent 56%);
+}
+
+.fish-pond-board::after {
+  background: radial-gradient(ellipse at 68% 66%, rgba(126, 206, 255, 0.08), transparent 58%);
+  animation-duration: 29000ms;
+  animation-direction: alternate-reverse;
+}
+
+.fish-pond-lily-layer,
+.fish-pond-food-layer,
+.fish-pond-fish-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.fish-pond-lily-layer {
+  z-index: 3;
+}
+
+.fish-pond-food-layer {
+  z-index: 5;
+}
+
+.fish-pond-fish-layer {
+  z-index: 4;
+}
+
+.fish-pond-fish {
+  position: absolute;
+  width: calc(var(--fish-px, 220px) * var(--fish-scale, 1));
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+  will-change: left, top, transform;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.42));
+  transition: filter 300ms ease;
+}
+
+.fish-pond-fish svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.fish-pond-body {
+  fill: var(--fish-body, #ff8a3d);
+}
+
+.fish-pond-tail {
+  fill: var(--fish-tail, #ff8a3d);
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+  animation: fish-pond-tail 2600ms ease-in-out infinite;
+}
+
+.fish-pond-fin {
+  fill: var(--fish-fin, #ff8a3d);
+  opacity: 0.9;
+}
+
+.fish-pond-belly {
+  fill: #ffffff;
+  opacity: 0.2;
+}
+
+.fish-pond-eye-white {
+  fill: #f7fbff;
+}
+
+.fish-pond-eye {
+  fill: #10222a;
+}
+
+.fish-pond-fish.is-fed {
+  filter:
+    drop-shadow(0 0 20px rgba(255, 226, 160, 0.85))
+    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.42));
+}
+
+.fish-pond-lily {
+  position: absolute;
+  width: var(--lily-px, 130px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+
+.fish-pond-lily-pad {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #5aa564 0%, #2c7846 62%, #17492d 100%);
+  box-shadow:
+    inset -8px -10px 22px rgba(0, 0, 0, 0.35),
+    inset 6px 8px 18px rgba(210, 255, 210, 0.16),
+    0 10px 22px rgba(0, 0, 0, 0.32);
+}
+
+.fish-pond-lily-pad::after {
+  content: "";
+  position: absolute;
+  top: 4%;
+  left: 50%;
+  width: 24%;
+  height: 49%;
+  background: rgba(4, 36, 44, 0.92);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform: translateX(-50%) rotate(24deg);
+}
+
+.fish-pond-lily-flower {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 68%;
+  height: 68%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.22) rotate(-24deg);
+  transition:
+    transform 900ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 700ms ease;
+}
+
+.fish-pond-lily.is-open .fish-pond-lily-flower {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1) rotate(0deg);
+}
+
+.fish-pond-lily-petal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 27%;
+  height: 52%;
+  border-radius: 50% 50% 42% 42%;
+  background: linear-gradient(180deg, #fff4f9 0%, #ffc7de 56%, #f18cba 100%);
+  box-shadow: 0 0 12px rgba(255, 188, 219, 0.42);
+  transform: translate(-50%, -100%) rotate(var(--petal-angle, 0deg));
+  transform-origin: 50% 100%;
+}
+
+.fish-pond-lily-centre {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #fff5ad 0%, #e3ac3d 74%, #b67a22 100%);
+  transform: translate(-50%, -50%);
+}
+
+.fish-pond-food {
+  position: absolute;
+  width: var(--food-px, 18px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff1b8 0%, #e0a33d 62%, #a9681e 100%);
+  box-shadow:
+    0 0 12px rgba(255, 210, 120, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%) scale(var(--food-scale, 1));
+  transition: opacity 220ms ease;
+}
+
+.fish-pond-food.is-gone {
+  opacity: 0 !important;
+  transform: translate(-50%, -50%) scale(0.35);
+  transition:
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+
+.fish-pond-ring {
+  position: absolute;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border: 2px solid rgba(198, 255, 240, 0.62);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.25);
+  animation: fish-pond-ring 1500ms ease-out forwards;
+}
+
+@keyframes fish-pond-tail {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+
+  50% {
+    transform: rotate(7deg);
+  }
+}
+
+@keyframes fish-pond-drift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+}
+
+@keyframes fish-pond-ring {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+
+  16% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(5.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fish-pond-board::before,
+  .fish-pond-board::after,
+  .fish-pond-tail {
+    animation: none;
+  }
+
+  .fish-pond-ring {
+    animation-duration: 500ms;
+  }
+
+  .fish-pond-lily-flower {
+    transition-duration: 200ms;
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Sand jar (sand-jar.js). Coloured sand pours from the finger into a glass jar drawn on
+   a canvas; the finished jars wait on a wooden shelf strip along the bottom.
+   --------------------------------------------------------------------------------- */
+
+.sand-jar-board {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background:
+    radial-gradient(ellipse at 24% 16%, rgba(255, 214, 150, 0.09), transparent 46%),
+    radial-gradient(ellipse at 78% 74%, rgba(93, 200, 184, 0.1), transparent 54%),
+    linear-gradient(164deg, #142f33 0%, #0d262b 52%, #07191d 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(198, 255, 240, 0.08),
+    inset 0 -24px 70px rgba(0, 0, 0, 0.5),
+    0 18px 50px rgba(0, 0, 0, 0.4);
+  touch-action: none;
+}
+
+.sand-jar-canvas {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.sand-jar-shelf {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(6px, 1.4vw, 16px);
+  min-height: clamp(52px, 9vh, 92px);
+  padding: 8px 16px 12px;
+  border-top: 2px solid rgba(216, 178, 118, 0.28);
+  background:
+    linear-gradient(180deg, rgba(126, 86, 44, 0.24), rgba(34, 21, 12, 0.62)),
+    rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset 0 8px 22px rgba(0, 0, 0, 0.42),
+    inset 0 -6px 14px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.sand-jar-shelf::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 5px;
+  background: linear-gradient(90deg, rgba(216, 178, 118, 0.16), rgba(216, 178, 118, 0.42), rgba(216, 178, 118, 0.16));
+  pointer-events: none;
+}
+
+.sand-jar-shelf-jar {
+  display: block;
+  width: clamp(18px, 2.8vw, 34px);
+  aspect-ratio: var(--sand-jar-ratio, 1);
+  border: 2px solid rgba(198, 255, 240, 0.3);
+  border-radius: 4px 4px 8px 8px;
+  background: var(--sand-jar-fill, linear-gradient(to top, #6b4a2b, #6b4a2b));
+  box-shadow:
+    inset 2px 0 5px rgba(255, 255, 255, 0.16),
+    inset -3px 0 7px rgba(0, 0, 0, 0.3),
+    0 3px 7px rgba(0, 0, 0, 0.38);
+}
+
+/* ---------------------------------------------------------------------------------
+   Pottery wheel (pottery-wheel.js). A lump of clay turns on a wheel, seen from the
+   side. Touching shapes its profile; after a stretch it is fired, glazed from three
+   big colour pots and set on the shelf strip along the bottom.
+   --------------------------------------------------------------------------------- */
+
+.pottery-wheel-board {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background:
+    radial-gradient(ellipse at 50% 26%, rgba(255, 209, 150, 0.09), transparent 54%),
+    radial-gradient(ellipse at 82% 76%, rgba(102, 190, 178, 0.08), transparent 50%),
+    linear-gradient(166deg, #1c2527 0%, #111b1d 52%, #081114 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 225, 190, 0.07),
+    inset 0 26px 70px rgba(0, 0, 0, 0.38),
+    inset 0 -20px 60px rgba(0, 0, 0, 0.5),
+    0 18px 50px rgba(0, 0, 0, 0.4);
+  touch-action: none;
+}
+
+/* The pot sits above the wheel. The finale scales the SVG itself, never this box, so the
+   centring transform stays put. */
+.pottery-wheel-pot {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  z-index: 2;
+  width: min(56%, 430px, 52vh);
+  aspect-ratio: 0.95;
+  transform: translateX(-50%);
+  transition: filter 600ms ease;
+}
+
+.pottery-wheel-pot-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42));
+  transform-origin: 50% 78%;
+  transition: filter 700ms ease;
+}
+
+.pottery-wheel-body {
+  stroke: rgba(36, 18, 9, 0.22);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  transition: filter 700ms ease;
+}
+
+.pottery-wheel-rim {
+  fill: rgba(72, 38, 20, 0.92);
+  stroke: rgba(255, 240, 220, 0.16);
+  stroke-width: 0.6;
+}
+
+.pottery-wheel-shine-group {
+  opacity: 0.9;
+}
+
+.pottery-wheel-shine {
+  animation: pottery-wheel-sweep 6.4s ease-in-out infinite alternate;
+}
+
+.pottery-wheel-pot.is-fired .pottery-wheel-pot-svg {
+  filter:
+    drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42))
+    drop-shadow(0 0 24px rgba(255, 174, 92, 0.55));
+  animation: pottery-wheel-glow 2400ms ease-in-out 1;
+}
+
+.pottery-wheel-pot.is-fired .pottery-wheel-body {
+  filter: brightness(1.08) saturate(0.84);
+}
+
+.pottery-wheel-pot.is-glazed .pottery-wheel-pot-svg {
+  filter:
+    drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42))
+    drop-shadow(0 0 18px rgba(160, 220, 255, 0.4));
+}
+
+/* The wheel, a soft disc with slow wooden spokes. */
+.pottery-wheel-wheel {
+  position: absolute;
+  left: 50%;
+  bottom: 15%;
+  z-index: 1;
+  width: min(48%, 380px, 42vh);
+  aspect-ratio: 3.1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 28%, rgba(180, 128, 82, 0.62), transparent 52%),
+    linear-gradient(180deg, #6f4a2c 0%, #4a2d18 54%, #24140a 100%);
+  box-shadow:
+    inset 0 5px 14px rgba(255, 218, 170, 0.18),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.55),
+    0 14px 24px rgba(0, 0, 0, 0.42);
+}
+
+.pottery-wheel-wheel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  z-index: -1;
+  width: 28%;
+  height: 120%;
+  transform: translateX(-50%);
+  border-radius: 10px 10px 18px 18px;
+  background: linear-gradient(180deg, #3c2515, #1b0f07);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+}
+
+.pottery-wheel-wheel-spin {
+  position: absolute;
+  inset: 7% 6%;
+  border-radius: 50%;
+  animation: pottery-wheel-spin 7s linear infinite;
+}
+
+.pottery-wheel-spoke {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46%;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(238, 197, 142, 0.78), rgba(120, 76, 42, 0.22));
+  transform-origin: 0 50%;
+  transform: rotate(var(--spoke-angle, 0deg));
+  opacity: 0.72;
+}
+
+.pottery-wheel-wheel-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #d8ac74 0%, #7e502d 64%, #3a2211 100%);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px rgba(40, 22, 10, 0.5);
+}
+
+/* Three big glaze pots, one per colour. */
+.pottery-wheel-colours {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(14px, 3vw, 36px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 16px) scale(0.9);
+  transition:
+    opacity 520ms ease,
+    transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pottery-wheel-colours.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.pottery-wheel-colour-pot {
+  position: relative;
+  width: clamp(62px, 10vh, 104px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 30%, var(--glaze-light, #fff) 0%, transparent 34%),
+    radial-gradient(circle at 60% 74%, var(--glaze-base, #39f) 0%, var(--glaze-dark, #126) 78%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.16),
+    inset -8px -10px 18px rgba(0, 0, 0, 0.32),
+    0 10px 22px rgba(0, 0, 0, 0.4);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.pottery-wheel-colour-pot::after {
+  content: "";
+  position: absolute;
+  inset: 12% 18% 52% 18%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
+}
+
+.pottery-wheel-colour-pot.is-chosen {
+  transform: scale(1.08);
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 255, 255, 0.42),
+    inset -8px -10px 18px rgba(0, 0, 0, 0.32),
+    0 0 26px rgba(255, 245, 210, 0.52);
+}
+
+/* The kiln glows once the clay has had enough touches (M2 and up). */
+.pottery-wheel-kiln {
+  position: absolute;
+  top: 8%;
+  right: 5%;
+  z-index: 3;
+  width: clamp(82px, 13vh, 148px);
+  aspect-ratio: 0.86;
+  border-radius: 50% 50% 16% 16% / 62% 62% 12% 12%;
+  background:
+    radial-gradient(ellipse at 50% 74%, rgba(255, 170, 70, 0.34), transparent 62%),
+    linear-gradient(180deg, #5a4536 0%, #33251b 58%, #1d1410 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 216, 160, 0.12),
+    inset 0 -10px 20px rgba(0, 0, 0, 0.5),
+    0 12px 26px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(8px) scale(0.84);
+  transition:
+    opacity 420ms ease,
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pottery-wheel-kiln.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  animation: pottery-wheel-kiln-pulse 2400ms ease-in-out infinite;
+}
+
+.pottery-wheel-kiln-door {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  width: 58%;
+  height: 54%;
+  border-radius: 50% 50% 12% 12% / 66% 66% 10% 10%;
+  background:
+    radial-gradient(ellipse at 50% 76%, #ffe7a6 0%, #ffb347 42%, #c95e18 76%, #63280c 100%);
+  box-shadow:
+    0 0 18px rgba(255, 166, 70, 0.6),
+    inset 0 0 14px rgba(255, 236, 190, 0.45);
+  transform: translateX(-50%);
+}
+
+.pottery-wheel-kiln-flame {
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  width: 22%;
+  height: 30%;
+  border-radius: 50% 50% 46% 46%;
+  background: linear-gradient(180deg, rgba(255, 234, 170, 0.92), rgba(255, 147, 55, 0.1));
+  filter: blur(1px);
+  transform: translateX(-50%);
+  animation: pottery-wheel-flame 1200ms ease-in-out infinite alternate;
+}
+
+/* The wooden shelf with the last pots. */
+.pottery-wheel-shelf {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 3%;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(4px, 1.1vw, 12px);
+  min-height: clamp(46px, 8vh, 78px);
+  padding: 6px 14px 10px;
+  border-top: 2px solid rgba(220, 176, 116, 0.28);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(134, 92, 48, 0.26), rgba(36, 22, 12, 0.64)),
+    rgba(0, 0, 0, 0.2);
+  box-shadow:
+    inset 0 8px 20px rgba(0, 0, 0, 0.42),
+    inset 0 -6px 14px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.pottery-wheel-shelf::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(220, 176, 116, 0.12),
+    rgba(220, 176, 116, 0.4),
+    rgba(220, 176, 116, 0.12)
+  );
+  pointer-events: none;
+}
+
+.pottery-wheel-shelf-pot {
+  display: block;
+  width: clamp(18px, 3vw, 32px);
+  height: clamp(24px, 4.2vw, 44px);
+  color: var(--shelf-pot, #b96a45);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
+  transition: transform 260ms ease;
+}
+
+.pottery-wheel-shelf-pot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pottery-wheel-shelf-pot-shape {
+  stroke: var(--shelf-pot-light, rgba(255, 255, 255, 0.28));
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+@keyframes pottery-wheel-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pottery-wheel-sweep {
+  from {
+    transform: translateX(-16px);
+    opacity: 0.55;
+  }
+
+  to {
+    transform: translateX(152px);
+    opacity: 0.95;
+  }
+}
+
+@keyframes pottery-wheel-glow {
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42))
+      drop-shadow(0 0 18px rgba(255, 174, 92, 0.42));
+  }
+
+  42% {
+    filter:
+      drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42))
+      drop-shadow(0 0 36px rgba(255, 196, 112, 0.86));
+  }
+}
+
+@keyframes pottery-wheel-kiln-pulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 216, 160, 0.12),
+      inset 0 -10px 20px rgba(0, 0, 0, 0.5),
+      0 0 18px rgba(255, 166, 70, 0.36);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 226, 178, 0.22),
+      inset 0 -10px 20px rgba(0, 0, 0, 0.5),
+      0 0 34px rgba(255, 178, 84, 0.68);
+  }
+}
+
+@keyframes pottery-wheel-flame {
+  from {
+    transform: translateX(-50%) scaleY(0.82);
+    opacity: 0.7;
+  }
+
+  to {
+    transform: translateX(-50%) scaleY(1.08);
+    opacity: 1;
+  }
+}
+
+@media (max-height: 520px) {
+  .pottery-wheel-pot {
+    width: min(52%, 320px, 46vh);
+  }
+
+  .pottery-wheel-colour-pot {
+    width: clamp(54px, 9vh, 82px);
+  }
+
+  .pottery-wheel-kiln {
+    width: clamp(68px, 11vh, 110px);
+  }
+
+  .pottery-wheel-shelf {
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pottery-wheel-wheel-spin,
+  .pottery-wheel-shine,
+  .pottery-wheel-kiln.is-visible,
+  .pottery-wheel-kiln-flame,
+  .pottery-wheel-pot.is-fired .pottery-wheel-pot-svg {
+    animation: none;
+  }
+
+  .pottery-wheel-colours {
+    transition-duration: 200ms;
+  }
+}
+
+/* ------------------------------------------------------------------------------ */
+/* Fruit bowl                                                                      */
+/* ------------------------------------------------------------------------------ */
+
+.fruit-bowl-board {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(10px, 2.4vh, 28px);
+  width: 100%;
+  min-height: 0;
+  touch-action: none;
+}
+
+.fruit-bowl-next {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: clamp(82px, 13vh, 148px);
+  height: clamp(82px, 13vh, 148px);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.035) 58%, transparent 72%);
+  box-shadow:
+    inset 0 0 0 3px rgba(210, 245, 255, 0.16),
+    0 14px 30px rgba(0, 0, 0, 0.34);
+  transition: box-shadow 300ms ease, transform 300ms ease;
+}
+
+.fruit-bowl-next::after {
+  content: '';
+  position: absolute;
+  bottom: 9%;
+  left: 22%;
+  right: 22%;
+  height: 9%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  filter: blur(2px);
+}
+
+.fruit-bowl-next.is-bonus {
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 212, 59, 0.5),
+    0 0 26px rgba(255, 212, 59, 0.42),
+    0 14px 30px rgba(0, 0, 0, 0.34);
+}
+
+.fruit-bowl-next.is-bonus .fruit-bowl-next-fruit {
+  animation: fruit-bowl-next-glow 1800ms ease-in-out infinite;
+}
+
+.fruit-bowl-bowl {
+  position: relative;
+  flex: 1;
+  width: min(96%, 1200px);
+  min-height: 0;
+  padding: clamp(10px, 2.2vh, 30px) clamp(12px, 2.4vw, 36px);
+  overflow: hidden;
+  border-radius: 46% 46% 34% 34% / 24% 24% 44% 44%;
+  background:
+    radial-gradient(ellipse at 50% 8%, rgba(198, 242, 255, 0.18), transparent 54%),
+    radial-gradient(ellipse at 50% 112%, rgba(72, 154, 184, 0.22), transparent 60%),
+    linear-gradient(180deg, rgba(32, 70, 96, 0.5), rgba(6, 17, 30, 0.72));
+  box-shadow:
+    inset 0 0 0 4px rgba(190, 235, 255, 0.2),
+    inset 0 -26px 46px rgba(0, 0, 0, 0.4),
+    inset 0 20px 32px rgba(255, 255, 255, 0.06),
+    0 22px 52px rgba(0, 0, 0, 0.44);
+  touch-action: none;
+}
+
+.fruit-bowl-bowl::before {
+  content: '';
+  position: absolute;
+  inset: 7% 7% auto 14%;
+  height: 22%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.fruit-bowl-rim {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: -1px;
+  height: 18px;
+  border-radius: 50%;
+  border-top: 4px solid rgba(222, 250, 255, 0.4);
+  filter: drop-shadow(0 0 8px rgba(180, 235, 255, 0.42));
+  pointer-events: none;
+}
+
+.fruit-bowl-grid {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.fruit-bowl-fruit {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  font-size: calc(var(--cell-size, 80px) * var(--fruit-scale, 0.7));
+  line-height: 1;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
+  transition: left 180ms ease, top 180ms ease, font-size 240ms ease;
+  will-change: transform;
+  pointer-events: none;
+  user-select: none;
+}
+
+.fruit-bowl-next .fruit-bowl-next-fruit {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  font-size: clamp(44px, 8.4vh, 94px);
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.42));
+}
+
+.fruit-bowl-fruit.is-new {
+  animation: fruit-bowl-drop 440ms cubic-bezier(0.22, 0.86, 0.3, 1.18) both;
+}
+
+.fruit-bowl-fruit.is-merge {
+  animation: fruit-bowl-merge 500ms cubic-bezier(0.22, 0.9, 0.3, 1.2) both;
+}
+
+.fruit-bowl-fruit.is-bonus {
+  filter:
+    drop-shadow(0 0 16px rgba(255, 212, 59, 0.9))
+    drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
+}
+
+.fruit-bowl-fruit.is-leaving {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.3) rotate(-10deg);
+  transition: transform 340ms ease, opacity 340ms ease;
+}
+
+.fruit-bowl-fruit.is-served {
+  z-index: 5;
+  animation: fruit-bowl-served 1050ms ease-out both;
+}
+
+@keyframes fruit-bowl-drop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - var(--drop-rise, 70px))) scale(0.76);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes fruit-bowl-merge {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+
+  58% {
+    transform: translate(-50%, -50%) scale(1.18);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes fruit-bowl-served {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translate(-50%, -58%) scale(1.16);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -190%) scale(0.9);
+  }
+}
+
+@keyframes fruit-bowl-next-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px rgba(255, 212, 59, 0.4)) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.42));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 24px rgba(255, 212, 59, 0.85)) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.42));
+  }
+}
+
+@media (max-height: 560px) {
+  .fruit-bowl-next {
+    width: clamp(68px, 15vh, 110px);
+    height: clamp(68px, 15vh, 110px);
+  }
+
+  .fruit-bowl-next .fruit-bowl-next-fruit {
+    font-size: clamp(38px, 10vh, 72px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fruit-bowl-fruit,
+  .fruit-bowl-next,
+  .fruit-bowl-next .fruit-bowl-next-fruit {
+    transition: none;
+  }
+
+  .fruit-bowl-fruit.is-new,
+  .fruit-bowl-fruit.is-merge,
+  .fruit-bowl-fruit.is-served,
+  .fruit-bowl-next.is-bonus .fruit-bowl-next-fruit {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+   Marble drop (marble-drop.js). A warm wooden peg board on the dark stage. Marbles
+   drop from the top, ring off the peg rows and settle into the wide cups below.
+   --------------------------------------------------------------------------------- */
+
+.marble-drop-board {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 36px;
+  background:
+    radial-gradient(ellipse at 50% 10%, rgba(255, 208, 142, 0.08), transparent 52%),
+    radial-gradient(ellipse at 50% 112%, rgba(0, 0, 0, 0.64), transparent 62%),
+    linear-gradient(180deg, #18110b 0%, #0e0a07 58%, #060403 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.05),
+    inset 0 -30px 80px rgba(0, 0, 0, 0.62);
+  touch-action: none;
+}
+
+.marble-drop-frame {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.022) 0 2px,
+      transparent 2px 6px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(146, 94, 52, 0.92) 0 18px,
+      rgba(128, 80, 43, 0.92) 18px 36px
+    ),
+    linear-gradient(180deg, #9b673a 0%, #7a4b28 56%, #582f18 100%);
+  box-shadow:
+    inset 0 0 0 6px rgba(58, 32, 14, 0.92),
+    inset 0 0 0 9px rgba(255, 214, 156, 0.22),
+    inset 0 26px 52px rgba(0, 0, 0, 0.4),
+    inset 0 -34px 66px rgba(0, 0, 0, 0.5),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.marble-drop-cups,
+.marble-drop-pegs,
+.marble-drop-waiting,
+.marble-drop-marbles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.marble-drop-cups {
+  z-index: 1;
+}
+
+.marble-drop-pegs {
+  z-index: 2;
+}
+
+.marble-drop-waiting {
+  z-index: 3;
+}
+
+.marble-drop-marbles {
+  z-index: 4;
+}
+
+.marble-drop-peg {
+  position: absolute;
+  width: var(--peg-size, 8.6%);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, #ffe7c0 0 12%, #d49a5e 34%, #85502a 68%, #4a2a12 100%);
+  box-shadow:
+    inset 0 -3px 5px rgba(0, 0, 0, 0.42),
+    inset 0 2px 4px rgba(255, 232, 192, 0.28),
+    0 2px 5px rgba(0, 0, 0, 0.48);
+}
+
+.marble-drop-peg::after {
+  content: "";
+  position: absolute;
+  inset: 13%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 222, 174, 0.16);
+}
+
+.marble-drop-peg.is-hit {
+  animation: marble-drop-peg-hit 220ms ease-out;
+}
+
+.marble-drop-cup {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 5% 8% 10%;
+  transform: translateX(-50%);
+  border: 2px solid rgba(255, 214, 160, 0.25);
+  border-top: none;
+  border-radius: 8% 8% 42% 42% / 4% 4% 22% 22%;
+  background:
+    linear-gradient(180deg, rgba(255, 214, 160, 0.08), rgba(34, 19, 9, 0.7) 46%, rgba(20, 11, 5, 0.9));
+  box-shadow:
+    inset 0 8px 14px rgba(255, 214, 160, 0.08),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.58),
+    0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.marble-drop-cup::before {
+  content: "";
+  position: absolute;
+  inset: -2px 2% auto;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255, 226, 180, 0.52), transparent);
+  pointer-events: none;
+}
+
+.marble-drop-cup-marbles {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  justify-content: center;
+  gap: 4% 7%;
+  width: 100%;
+  height: 100%;
+}
+
+.marble-drop-cup-marble {
+  width: 33%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 33% 27%, var(--marble-light, #ffffff) 0 13%, var(--marble-base, #ff6b7a) 48%, var(--marble-dark, #8a1f2d) 100%);
+  box-shadow:
+    inset -2px -3px 5px rgba(0, 0, 0, 0.34),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.marble-drop-cup.is-landing {
+  animation: marble-drop-cup-landing 320ms ease-out;
+}
+
+.marble-drop-cup.is-tipping {
+  animation: marble-drop-cup-tipping 980ms ease-in-out;
+}
+
+.marble-drop-marble {
+  position: absolute;
+  width: 9.714%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(var(--marble-rot, 0rad));
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 33% 27%,
+      rgba(255, 255, 255, 0.98) 0 8%,
+      var(--marble-light, #ffd0d6) 17%,
+      var(--marble-base, #ff6b7a) 52%,
+      var(--marble-dark, #8a1f2d) 100%
+    );
+  box-shadow:
+    inset -4px -6px 10px rgba(0, 0, 0, 0.34),
+    inset 3px 4px 8px rgba(255, 255, 255, 0.18),
+    0 4px 9px rgba(0, 0, 0, 0.48);
+}
+
+.marble-drop-marble.is-waiting {
+  width: 6.6%;
+  opacity: 0.82;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    inset -3px -4px 7px rgba(0, 0, 0, 0.32),
+    0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes marble-drop-peg-hit {
+  0% {
+    filter: brightness(1.75);
+  }
+
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@keyframes marble-drop-cup-landing {
+  0% {
+    filter: brightness(1.7);
+  }
+
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@keyframes marble-drop-cup-tipping {
+  0%,
+  100% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+
+  18% {
+    transform: translateX(-50%) rotate(-4deg);
+  }
+
+  38% {
+    transform: translateX(-50%) rotate(3.4deg);
+  }
+
+  58% {
+    transform: translateX(-50%) rotate(-2.4deg);
+  }
+
+  78% {
+    transform: translateX(-50%) rotate(1.4deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marble-drop-peg.is-hit,
+  .marble-drop-cup.is-landing,
+  .marble-drop-cup.is-tipping {
+    animation: none;
+  }
+}
