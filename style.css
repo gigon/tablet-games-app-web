@@ -1140,8 +1140,8 @@ body.settings-open {
 
 .garden-pot.is-bloomed .garden-plant,
 .garden-pot.is-finished .garden-plant {
-  opacity: 0.42;
-  filter: grayscale(0.4) brightness(0.82);
+  opacity: 1;
+  filter: drop-shadow(0 0 18px rgba(255, 230, 140, 0.8));
 }
 
 .garden-plant-name {

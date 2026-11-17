@@ -266,7 +266,7 @@ export function renderGarden(stage, options = {}) {
     }
     potElement.append(baseElement);
 
-    if (pot.thirsty) potElement.classList.add('is-thirsty');
+    if (ruleLevel === 2 && pot.thirsty) potElement.classList.add('is-thirsty');
 
     potsElement.append(potElement);
     potElements.push(potElement);
@@ -296,7 +296,7 @@ export function renderGarden(stage, options = {}) {
     const pot = pots[index];
     if (!pot) return;
     plantElements[index].textContent = pot.stages[pot.stage];
-    potElements[index].classList.toggle('is-thirsty', pot.thirsty && !pot.bloomed);
+    potElements[index].classList.toggle('is-thirsty', ruleLevel === 2 && pot.thirsty && !pot.bloomed);
     potElements[index].classList.toggle('is-bloomed', pot.bloomed);
   }
 
