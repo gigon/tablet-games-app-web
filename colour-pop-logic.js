@@ -15,6 +15,7 @@ import { createLadder } from './levels.js';
 
 export const COLOUR_LADDER = createLadder({
   storageKey: 'tabletGames.colourPop',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 3 },
     { id: 'rule', max: 2 },

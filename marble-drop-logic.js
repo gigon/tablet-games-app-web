@@ -16,6 +16,7 @@ import { createLadder } from './levels.js';
 
 export const MARBLE_LADDER = createLadder({
   storageKey: 'tabletGames.marbleDrop',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 2 },
     { id: 'rule', max: 1 },

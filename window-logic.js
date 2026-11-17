@@ -13,6 +13,7 @@ import { createLadder } from './levels.js';
 
 export const WINDOW_LADDER = createLadder({
   storageKey: 'tabletGames.window',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 2 },
     { id: 'rule', max: 1 },

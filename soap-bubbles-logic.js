@@ -17,6 +17,7 @@ import { createLadder } from './levels.js';
 
 export const SOAP_LADDER = createLadder({
   storageKey: 'tabletGames.soapBubbles',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 3 },
     { id: 'rule', max: 2 },

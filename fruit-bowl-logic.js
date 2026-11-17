@@ -16,6 +16,7 @@ import { createLadder } from './levels.js';
 
 export const FRUIT_LADDER = createLadder({
   storageKey: 'tabletGames.fruitBowl',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 2 },
     { id: 'rule', max: 2 },

@@ -14,6 +14,7 @@ import { createLadder } from './levels.js';
 
 export const STAINED_LADDER = createLadder({
   storageKey: 'tabletGames.stainedGlass',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 3 },
     { id: 'rule', max: 2 },

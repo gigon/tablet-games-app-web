@@ -12,6 +12,7 @@ import { createLadder } from './levels.js';
 
 export const SAND_LADDER = createLadder({
   storageKey: 'tabletGames.sandJar',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 2 },
     { id: 'rule', max: 1 },

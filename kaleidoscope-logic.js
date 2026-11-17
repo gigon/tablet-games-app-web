@@ -13,6 +13,7 @@ import { createLadder } from './levels.js';
 
 export const KALEIDOSCOPE_LADDER = createLadder({
   storageKey: 'tabletGames.kaleidoscope',
+  upStreak: 1,
   dimensions: [{ id: 'motor', max: 2 }],
 });
 

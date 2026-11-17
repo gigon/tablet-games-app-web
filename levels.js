@@ -36,7 +36,8 @@ function normalizeDimensionDef(dimension) {
   });
 }
 
-export function createLadder({ storageKey, dimensions } = {}) {
+export function createLadder({ storageKey, dimensions, upStreak = UP_STREAK } = {}) {
+  const up = clampInteger(upStreak, 1, UP_STREAK, UP_STREAK);
   if (typeof storageKey !== 'string' || storageKey.trim() === '') {
     throw new TypeError('A ladder needs a storageKey.');
   }
@@ -68,7 +69,7 @@ export function createLadder({ storageKey, dimensions } = {}) {
       const source = isPlainObject(state[def.id]) ? state[def.id] : {};
       next[def.id] = {
         level: clampInteger(source.level, def.min, def.max, def.min),
-        successes: clampInteger(source.successes, 0, UP_STREAK, 0),
+        successes: clampInteger(source.successes, 0, up, 0),
         failures: clampInteger(source.failures, 0, DOWN_STREAK, 0),
       };
     }
@@ -121,7 +122,7 @@ export function createLadder({ storageKey, dimensions } = {}) {
       if (result !== true && result !== false) continue;
       const entry = next[def.id];
       if (result) {
-        entry.successes = Math.min(UP_STREAK, entry.successes + 1);
+        entry.successes = Math.min(up, entry.successes + 1);
         entry.failures = 0;
       } else {
         entry.failures += 1;
@@ -138,7 +139,7 @@ export function createLadder({ storageKey, dimensions } = {}) {
     for (let offset = 0; offset < defs.length; offset += 1) {
       const def = defs[(start + offset) % defs.length];
       const entry = next[def.id];
-      if (entry.successes < UP_STREAK) continue;
+      if (entry.successes < up) continue;
       if (entry.level >= def.max) {
         entry.successes = 0;
         continue;

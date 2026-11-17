@@ -17,6 +17,7 @@ import { createLadder } from './levels.js';
 // Storage keys are 'tabletGames.<type>'. Never reuse another game's key.
 export const TEMPLATE_LADDER = createLadder({
   storageKey: 'tabletGames.templateToy',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 3 },
     { id: 'rule', max: 2 },

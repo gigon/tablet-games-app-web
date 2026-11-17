@@ -482,10 +482,18 @@ function persist() {
   saveState(window.localStorage, state);
 }
 
+// The level shown on screen: for registry games the highest level any of its dimensions
+// has reached (the saved state, or the caregiver's fixed level), never a legacy counter.
+function displayLevel(type) {
+  const registered = getGame(type);
+  if (!registered) return effectiveLevel(state, type);
+  return Math.max(...Object.values(gameLevels(registered)));
+}
+
 function updateHud() {
   const title = currentGame ? gameText(currentGame, language()).title : '';
   els.gameTitle.textContent = title || text('appTitle');
-  const level = currentGame ? effectiveLevel(state, currentGame.type) : 1;
+  const level = currentGame ? displayLevel(currentGame.type) : 1;
   els.status.textContent = text('level', { level });
 }
 
@@ -496,7 +504,7 @@ function updateStatusLine() {
     return;
   }
   const game = gameText(currentGame, language()).title || text('appTitle');
-  const level = effectiveLevel(state, currentGame.type);
+  const level = displayLevel(currentGame.type);
   const minutes = minutesPlayed(gameSessionStartedAt, performance.now());
   const registered = getGame(currentGame.type);
   let line = '';

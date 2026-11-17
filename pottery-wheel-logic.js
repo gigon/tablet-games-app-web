@@ -17,6 +17,7 @@ import { createLadder } from './levels.js';
 
 export const POTTERY_LADDER = createLadder({
   storageKey: 'tabletGames.potteryWheel',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 3 },
     { id: 'rule', max: 1 },

@@ -13,6 +13,7 @@ import { createLadder } from './levels.js';
 
 export const BUBBLE_LADDER = createLadder({
   storageKey: 'tabletGames.bubbleSheet',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 4 },
     { id: 'rule', max: 1 },

@@ -11,6 +11,7 @@ import { createLadder } from './levels.js';
 
 export const FISH_LADDER = createLadder({
   storageKey: 'tabletGames.fishPond',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 2 },
     { id: 'rule', max: 1 },

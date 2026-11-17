@@ -17,6 +17,7 @@ import { createLadder } from './levels.js';
 
 export const NIGHT_LADDER = createLadder({
   storageKey: 'tabletGames.nightSky',
+  upStreak: 1,
   dimensions: [
     { id: 'motor', max: 2 },
     { id: 'rule', max: 2 },
